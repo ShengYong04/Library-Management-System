@@ -1,0 +1,22 @@
+CREATE OR REPLACE FUNCTION calculate_discounted_amount(
+    p_fine_amount IN NUMBER,
+    p_campaign_id IN CHAR
+) RETURN NUMBER IS
+    v_discount_rate NUMBER;
+    v_is_active NUMBER;
+BEGIN
+    -- Check if campaign is valid and get discount rate
+    SELECT DiscountRate, 1
+    INTO v_discount_rate, v_is_active
+    FROM Campaign
+    WHERE CampaignID = p_campaign_id
+      AND CampaignStatus = 'ACTIVE'
+      AND SYSDATE BETWEEN StartDate AND EndDate;
+
+    -- Calculate discounted amount
+    RETURN p_fine_amount * (1 - (v_discount_rate / 100));
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN p_fine_amount; -- No discount if campaign invalid
+END;
+/

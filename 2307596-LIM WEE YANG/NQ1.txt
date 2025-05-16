@@ -1,0 +1,26 @@
+SET PAGESIZE 15
+SET LINESIZE 132
+SET FEEDBACK OFF
+SET VERIFY  OFF
+
+TTITLE CENTER '=== List of Overdue Books Categorised by Duration ===' SKIP 2
+
+COLUMN BookCopyID       FORMAT A8     HEADING 'Copy ID'
+COLUMN BookTitle        FORMAT A40    HEADING 'Title'
+COLUMN MemberID         FORMAT A9     HEADING 'Member ID'
+COLUMN MemberName       FORMAT A30    HEADING 'Member Name'
+COLUMN DueDate          FORMAT A12    HEADING 'Due Date'
+COLUMN Days_Overdue     FORMAT 9999   HEADING 'Days Overdue'
+COLUMN Overdue_Category FORMAT A15    HEADING 'Category'
+
+SELECT * 
+FROM v_overdue_books_summary;
+
+PROMPT  
+PROMPT ====================================================================================================================================
+PROMPT =                                                          End of Listing                                                          =
+PROMPT ====================================================================================================================================
+
+TTITLE OFF
+SET FEEDBACK ON
+SET VERIFY  ON

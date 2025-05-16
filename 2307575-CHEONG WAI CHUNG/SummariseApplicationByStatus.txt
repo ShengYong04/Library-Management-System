@@ -1,0 +1,111 @@
+SET SERVEROUTPUT ON;
+SET LINESIZE 350
+CREATE OR REPLACE PROCEDURE SummariseApplicationByStatus AS
+  CURSOR c_status IS
+    SELECT 'PENDING' AS status FROM DUAL
+    UNION ALL
+    SELECT 'APPROVED' FROM DUAL
+    UNION ALL
+    SELECT 'REJECTED' FROM DUAL;
+
+  CURSOR c_app(p_status VARCHAR2) IS
+    SELECT 
+      a.ApplicationID,
+      a.ApplicationName,
+      m.MemberID,
+      m.FirstName || ' ' || m.LastName AS FullName,
+      c.CampaignID,
+      c.CampaignName,
+      a.ApplicationDate,
+      a.ApplicationStatus
+    FROM Application a
+    JOIN Members m ON a.MemberID = m.MemberID
+    JOIN Campaign c ON a.CampaignID = c.CampaignID
+    WHERE UPPER(a.ApplicationStatus) = p_status
+    ORDER BY a.ApplicationDate;
+
+  v_total NUMBER;
+  v_month NUMBER;
+  v_week  NUMBER;
+  v_found BOOLEAN := FALSE;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '=========================================================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                                              Campaign Application Summary Report                                                     =');
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '=========================================================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('Generated on: ' || TO_CHAR(SYSDATE, 'MM/DD/YYYY HH24:MI'));
+
+  FOR status_rec IN c_status LOOP
+    -- Calculate total, current month, and current week counts
+    SELECT COUNT(*) INTO v_total
+    FROM Application
+    WHERE UPPER(ApplicationStatus) = status_rec.status;
+
+    SELECT COUNT(*) INTO v_month
+    FROM Application
+    WHERE UPPER(ApplicationStatus) = status_rec.status
+      AND EXTRACT(MONTH FROM ApplicationDate) = EXTRACT(MONTH FROM SYSDATE)
+      AND EXTRACT(YEAR FROM ApplicationDate) = EXTRACT(YEAR FROM SYSDATE);
+
+    SELECT COUNT(*) INTO v_week
+    FROM Application
+    WHERE UPPER(ApplicationStatus) = status_rec.status
+      AND TRUNC(ApplicationDate, 'IW') = TRUNC(SYSDATE, 'IW');
+
+    IF v_total > 0 THEN
+      v_found := TRUE;
+
+      DBMS_OUTPUT.PUT_LINE(CHR(10) || status_rec.status || ':');
+      DBMS_OUTPUT.PUT_LINE('Total Records      : ' || v_total);
+      DBMS_OUTPUT.PUT_LINE('This Month Records : ' || v_month);
+      DBMS_OUTPUT.PUT_LINE('This Week Records  : ' || v_week);
+
+      DBMS_OUTPUT.PUT_LINE(' ');
+      DBMS_OUTPUT.PUT_LINE(
+        RPAD('App ID', 10)       || ' ' ||
+        RPAD('Application Name', 35)     || ' ' ||
+        RPAD('Member ID', 10)    || ' ' ||
+        RPAD('Full Name', 25)    || ' ' ||
+        RPAD('Campaign ID', 12)  || ' ' ||
+        RPAD('Campaign Name', 25)|| ' ' ||
+        RPAD('App Date', 12)     || ' ' ||
+        RPAD('Status', 10)
+      );
+      DBMS_OUTPUT.PUT_LINE(
+        RPAD('-', 10, '-') || ' ' ||
+        RPAD('-', 25, '-') || ' ' ||
+        RPAD('-', 10, '-') || ' ' ||
+        RPAD('-', 35, '-') || ' ' ||
+        RPAD('-', 12, '-') || ' ' ||
+        RPAD('-', 25, '-') || ' ' ||
+        RPAD('-', 12, '-') || ' ' ||
+        RPAD('-', 10, '-')
+      );
+
+      FOR app_rec IN c_app(status_rec.status) LOOP
+        DBMS_OUTPUT.PUT_LINE(
+          RPAD(app_rec.ApplicationID, 10)                     || ' ' ||
+          RPAD(SUBSTR(app_rec.ApplicationName, 1, 35), 35)    || ' ' ||
+          RPAD(app_rec.MemberID, 10)                          || ' ' ||
+          RPAD(SUBSTR(app_rec.FullName, 1, 25), 25)           || ' ' ||
+          RPAD(app_rec.CampaignID, 12)                        || ' ' ||
+          RPAD(SUBSTR(app_rec.CampaignName, 1, 25), 25)       || ' ' ||
+          RPAD(TO_CHAR(app_rec.ApplicationDate, 'MM/DD/YYYY'), 12) || ' ' ||
+          RPAD(app_rec.ApplicationStatus, 10)
+        );
+      END LOOP;
+    END IF;
+  END LOOP;
+
+  IF NOT v_found THEN
+    RAISE_APPLICATION_ERROR(-20020, 'No application records found.');
+  END IF;
+
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '=========================================================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                                                      End of Report                                                                    =');
+  DBMS_OUTPUT.PUT_LINE('=========================================================================================================================================================');
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20021, 'Unexpected error in SummariseApplicationByStatus: ' || SQLERRM);
+END;
+/

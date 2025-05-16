@@ -1,0 +1,14 @@
+View Code:
+CREATE OR REPLACE VIEW vw_campaign_effectiveness AS
+SELECT 
+    c.CampaignID,
+    c.CampaignName,
+    COUNT(DISTINCT p.MemberID) AS MembersParticipated,
+    COUNT(p.PaymentID) AS PaymentsProcessed,
+    SUM(p.PaymentAmount) AS TotalRevenue,
+    c.DiscountRate,
+    ROUND(SUM(p.PaymentAmount) / COUNT(DISTINCT p.MemberID), 2) AS RevenuePerMember
+FROM Payment p
+JOIN Campaign c ON p.CampaignID = c.CampaignID
+GROUP BY c.CampaignID, c.CampaignName, c.DiscountRate
+ORDER BY TotalRevenue DESC;

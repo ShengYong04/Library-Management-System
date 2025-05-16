@@ -1,0 +1,70 @@
+-- test data refer to bookcopy BC000224
+-- UPDATE Loan
+--    SET ReturnDate = TO_DATE('04/23/2025','MM/DD/YYYY'),
+--        LoanStatus = 'RETURNED'
+-- WHERE LoanID     = 'LN000506';
+
+-- returnDate cannot be smaller than borrowDate
+-- UPDATE Loan
+--    SET ReturnDate = TO_DATE('04/10/2025','MM/DD/YYYY'),
+--        LoanStatus = 'RETURNED'
+-- WHERE LoanID     = 'LN000507';
+
+-- Old Return is not null but new return is null
+-- UPDATE Loan
+--    SET ReturnDate = NULL
+-- WHERE LoanID     = 'LN000506';
+
+CREATE OR REPLACE TRIGGER trg_loan_bu
+BEFORE UPDATE ON Loan
+FOR EACH ROW
+DECLARE
+  v_status    BookCopy.AvailabilityStatus%TYPE;
+  v_count    INTEGER;
+BEGIN
+  IF :OLD.ReturnDate IS NULL AND :NEW.ReturnDate IS NOT NULL THEN
+
+    IF :NEW.ReturnDate < :NEW.BorrowDate THEN
+      RAISE_APPLICATION_ERROR(
+        -20003,
+        'ReturnDate (' || TO_CHAR(:NEW.ReturnDate,'MM/DD/YYYY') || 
+        ') cannot be before BorrowDate (' || TO_CHAR(:NEW.BorrowDate,'MM/DD/YYYY') || ')'
+      );
+    END IF;
+
+    SELECT AvailabilityStatus
+      INTO v_status
+      FROM BookCopy
+     WHERE BookCopyID = :OLD.BookCopyID
+       FOR UPDATE NOWAIT;
+
+    SELECT COUNT(*) 
+      INTO v_count
+      FROM Reservation
+     WHERE BookCopyID = :OLD.BookCopyID
+       AND ReservationStatus = 'PLACED';
+
+    UPDATE BookCopy
+       SET AvailabilityStatus = CASE 
+                                   WHEN v_count > 0 THEN 'RESERVED'
+                                   ELSE 'AVAILABLE'
+                                 END
+     WHERE BookCopyID = :OLD.BookCopyID;
+
+  ELSIF :OLD.ReturnDate IS NOT NULL AND :NEW.ReturnDate IS NULL THEN
+    RAISE_APPLICATION_ERROR(
+      -20004,
+      'Cannot clear ReturnDate once it has been set for Loan ' || :OLD.LoanID
+    );
+  END IF;
+
+  EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(
+      -20001,
+      'BookCopy ' || :OLD.BookCopyID || ' not found when updating availability'
+    );
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20099, 'Unexpected error: ' || SQLERRM);
+END;
+/

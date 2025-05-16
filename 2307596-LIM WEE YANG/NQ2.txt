@@ -1,0 +1,52 @@
+SET PAGESIZE 15
+SET LINESIZE 164
+SET FEEDBACK OFF
+SET VERIFY  OFF
+
+TTITLE CENTER '===Search Results for Books===' SKIP 2
+
+ACCEPT p_keyword PROMPT 'Enter search keyword (title, author, genre, or publisher)            : '
+ACCEPT p_min_year PROMPT 'Enter minimum year (leave blank if not used)                         : '
+ACCEPT p_max_year PROMPT 'Enter maximum year (leave blank if not used)                         : '
+ACCEPT p_min_popularity PROMPT 'Enter minimum number of popularity (leave blank if not used)         : '
+
+COLUMN BookID          FORMAT A8     HEADING 'Book ID'
+COLUMN BookTitle       FORMAT A40    HEADING 'Title'
+COLUMN BookAuthor      FORMAT A25    HEADING 'Author'
+COLUMN Genre           FORMAT A15    HEADING 'Genre'
+COLUMN BookPublisher   FORMAT A25    HEADING 'Publisher'
+COLUMN PublicationYear FORMAT 9999   HEADING 'Year'
+COLUMN AvailableCopies FORMAT 9999   HEADING 'Available Copies'
+COLUMN TotalCopies     FORMAT 9999   HEADING 'Total Copies'
+COLUMN Popularity      FORMAT 9999   HEADING 'Popularity'
+
+SELECT * 
+FROM v_book_search
+WHERE 
+  (
+    LOWER(BookTitle)     LIKE '%' || LOWER('&p_keyword') || '%' OR
+    LOWER(BookAuthor)    LIKE '%' || LOWER('&p_keyword') || '%' OR
+    LOWER(Genre)         LIKE '%' || LOWER('&p_keyword') || '%' OR
+    LOWER(BookPublisher) LIKE '%' || LOWER('&p_keyword') || '%'
+  )
+  AND (
+    '&p_min_year' IS NULL OR PublicationYear >= TO_NUMBER('&p_min_year')
+  )
+  AND (
+    '&p_max_year' IS NULL OR PublicationYear <= TO_NUMBER('&p_max_year')
+  )
+  AND (
+    '&p_min_popularity' IS NULL OR Popularity >= TO_NUMBER('&p_min_popularity')
+  )
+ORDER BY 
+  Popularity DESC,
+  BookTitle;
+
+PROMPT  
+PROMPT =====================================================================================================================================================================
+PROMPT =                                                                       End of Search Result                                                                        =
+PROMPT =====================================================================================================================================================================
+
+TTITLE OFF
+SET FEEDBACK ON
+SET VERIFY  ON

@@ -1,0 +1,51 @@
+CREATE OR REPLACE TRIGGER trg_check_campaign_application
+BEFORE INSERT ON Application
+FOR EACH ROW
+DECLARE
+    v_AppCount     INTEGER;
+    v_EndDate      DATE;
+    v_MemEndDate   DATE;
+    v_MemStatus    VARCHAR2(9);
+BEGIN
+    -- Check if the member already applied for this campaign with PENDING or APPROVED status
+    SELECT COUNT(*)
+    INTO v_AppCount
+    FROM Application
+    WHERE MemberID = :NEW.MemberID
+      AND CampaignID = :NEW.CampaignID
+      AND UPPER(ApplicationStatus) IN ('PENDING', 'APPROVED');
+
+    IF v_AppCount > 0 THEN
+        RAISE_APPLICATION_ERROR(-20201, 'Member has already applied for this campaign.');
+    END IF;
+
+    -- Check if campaign has already ended
+    SELECT EndDate
+    INTO v_EndDate
+    FROM Campaign
+    WHERE CampaignID = :NEW.CampaignID;
+
+    IF SYSDATE > v_EndDate THEN
+        RAISE_APPLICATION_ERROR(-20202, 'Campaign has ended. Cannot apply.');
+    END IF;
+
+    -- Check member status and due date
+    SELECT EndDate, MembershipStatus
+    INTO v_MemEndDate, v_MemStatus
+    FROM Members
+    WHERE MemberID = :NEW.MemberID;
+
+    IF UPPER(v_MemStatus) <> 'ACTIVE' THEN
+        RAISE_APPLICATION_ERROR(-20203, 'Member is not active.');
+    END IF;
+
+    IF SYSDATE > v_MemEndDate THEN
+        RAISE_APPLICATION_ERROR(-20204, 'Membership has expired.');
+    END IF;
+END;
+/
+
+/*
+EXEC RegisterCampaignApplication('MB000033', 'CM000001');
+EXEC RegisterCampaignApplication('MB000001', 'CM000024');
+*/

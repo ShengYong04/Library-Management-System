@@ -1,0 +1,9 @@
+DROP TABLE Application;
+DROP TABlE Reservation;
+Drop Table Payment;
+DROP Table Fine;
+DROP TABLE Loan;
+DROP TABLE BookCopy;
+DROP TABLE Campaign;
+DROP TABLE Book;
+DROP TABLE Members;

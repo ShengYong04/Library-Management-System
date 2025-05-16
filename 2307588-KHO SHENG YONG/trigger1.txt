@@ -1,0 +1,102 @@
+CREATE OR REPLACE TRIGGER trg_reservation_bi
+BEFORE INSERT OR UPDATE OF ReservationStatus ON Reservation
+FOR EACH ROW
+DECLARE
+  v_mem_status     Members.MembershipStatus%TYPE;
+  v_copy_status    BookCopy.AvailabilityStatus%TYPE;
+  v_active_loans   INTEGER;
+  v_active_count   INTEGER;
+  v_book_title     Book.BookTitle%TYPE;
+  v_dup_count      INTEGER;
+  v_is_insert      BOOLEAN := INSERTING;
+BEGIN
+  SELECT membershipstatus
+    INTO v_mem_status
+    FROM Members
+   WHERE MemberID = :NEW.MemberID;
+  IF v_mem_status <> 'ACTIVE' THEN
+    RAISE_APPLICATION_ERROR(-20012,
+      'Cannot reserve: Member '||:NEW.MemberID||' is not ACTIVE.');
+  END IF;
+
+  SELECT availabilitystatus
+    INTO v_copy_status
+    FROM BookCopy
+   WHERE BookCopyID = :NEW.BookCopyID;
+  IF v_copy_status <> 'AVAILABLE' THEN
+    RAISE_APPLICATION_ERROR(-20013,
+      'Cannot reserve: BookCopy '||:NEW.BookCopyID||' is not AVAILABLE.');
+  END IF;
+
+  IF v_is_insert
+     OR (:NEW.ReservationStatus IN ('PLACED','READY')
+         AND NVL(:OLD.ReservationStatus,'') <> :NEW.ReservationStatus)
+  THEN
+    SELECT COUNT(*)
+      INTO v_active_loans
+      FROM Loan
+     WHERE MemberID = :NEW.MemberID
+       AND LoanStatus IN ('VALID','OVERDUE');
+    IF v_active_loans >= 8 THEN
+      RAISE_APPLICATION_ERROR(-20015,
+        'Cannot reserve: Member '||:NEW.MemberID||' has 8 active loans.');
+    END IF;
+
+    IF v_is_insert THEN
+      SELECT COUNT(*)
+        INTO v_active_count
+        FROM Reservation
+       WHERE MemberID = :NEW.MemberID
+         AND ReservationStatus IN ('PLACED','READY');
+    ELSE
+      SELECT COUNT(*)
+        INTO v_active_count
+        FROM Reservation
+       WHERE MemberID = :NEW.MemberID
+         AND ReservationStatus IN ('PLACED','READY')
+         AND ReservationID <> :NEW.ReservationID;
+    END IF;
+    IF v_active_count >= 3 THEN
+      RAISE_APPLICATION_ERROR(-20010,
+        'Cannot reserve: Member has 3 active reservations.');
+    END IF;
+
+    SELECT b.BookTitle
+      INTO v_book_title
+      FROM BookCopy bc
+      JOIN Book b ON bc.BookID = b.BookID
+     WHERE bc.BookCopyID = :NEW.BookCopyID;
+
+    IF v_is_insert THEN
+      SELECT COUNT(*)
+        INTO v_dup_count
+        FROM Reservation r
+        JOIN BookCopy bc2 ON r.BookCopyID = bc2.BookCopyID
+        JOIN Book b2      ON bc2.BookID = b2.BookID
+       WHERE r.MemberID = :NEW.MemberID
+         AND b2.BookTitle = v_book_title
+         AND r.ReservationStatus IN ('PLACED','READY');
+    ELSE
+      SELECT COUNT(*)
+        INTO v_dup_count
+        FROM Reservation r
+        JOIN BookCopy bc2 ON r.BookCopyID = bc2.BookCopyID
+        JOIN Book b2      ON bc2.BookID = b2.BookID
+       WHERE r.MemberID = :NEW.MemberID
+         AND r.ReservationID <> :NEW.ReservationID
+         AND b2.BookTitle = v_book_title
+         AND r.ReservationStatus IN ('PLACED','READY');
+    END IF;
+    IF v_dup_count > 0 THEN
+      RAISE_APPLICATION_ERROR(-20011,
+        'Cannot reserve: Duplicate title "'||v_book_title||'".');
+    END IF;
+  END IF;
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(-20014, 'Invalid MemberID or BookCopyID.');
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20099, 'Unexpected error: ' || SQLERRM);
+END;
+/

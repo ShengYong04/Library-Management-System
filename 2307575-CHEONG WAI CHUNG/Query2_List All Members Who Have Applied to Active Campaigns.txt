@@ -1,0 +1,23 @@
+set linesize 380
+COLUMN MemberID           FORMAT A10      HEADING 'Member ID'
+COLUMN FullName           FORMAT A25      HEADING 'Full Name'
+COLUMN CampaignName       FORMAT A35      HEADING 'Campaign Name' 
+COLUMN ApplicationStatus  FORMAT A12      HEADING 'Status'
+COLUMN ApplicationDate    FORMAT A12      HEADING 'Apply Date'
+
+SELECT 
+    m.MemberID,
+    m.FirstName || ' ' || m.LastName AS FullName,
+    c.CampaignName,
+    a.ApplicationStatus,
+    TO_CHAR(a.ApplicationDate, 'DD-MON-YYYY') AS ApplicationDate
+FROM 
+    Application a
+JOIN 
+    Members m ON a.MemberID = m.MemberID
+JOIN 
+    Campaign c ON a.CampaignID = c.CampaignID
+WHERE 
+    UPPER(c.CampaignStatus) = 'ACTIVE'
+ORDER BY 
+    a.ApplicationDate DESC;

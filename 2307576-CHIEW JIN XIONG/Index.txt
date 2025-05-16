@@ -1,0 +1,5 @@
+CREATE INDEX idx_payment_fineid ON Payment(FineID);
+
+CREATE INDEX idx_payment_memberid ON Payment(MemberID);
+
+CREATE INDEX idx_payment_campaign_date ON Payment(CampaignID, PaymentDate);

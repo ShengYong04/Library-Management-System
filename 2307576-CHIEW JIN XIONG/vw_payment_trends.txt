@@ -1,0 +1,17 @@
+CREATE OR REPLACE VIEW vw_payment_trends AS
+SELECT 
+    EXTRACT(YEAR FROM p.PaymentDate) AS Year,
+    EXTRACT(MONTH FROM p.PaymentDate) AS Month,
+    NVL(c.CampaignName, 'NO CAMPAIGN') AS CampaignName,
+    SUM(p.PaymentAmount) AS TotalRevenue,
+    COUNT(*) AS TransactionCount
+FROM Payment p
+LEFT JOIN Campaign c ON p.CampaignID = c.CampaignID
+GROUP BY 
+    EXTRACT(YEAR FROM p.PaymentDate), 
+    EXTRACT(MONTH FROM p.PaymentDate), 
+    NVL(c.CampaignName, 'NO CAMPAIGN')
+ORDER BY 
+    Year, 
+    Month, 
+    TOTALREVENUE DESC;

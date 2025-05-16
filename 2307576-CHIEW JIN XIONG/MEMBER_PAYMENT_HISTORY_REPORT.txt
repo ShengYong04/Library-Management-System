@@ -1,0 +1,74 @@
+CREATE OR REPLACE PROCEDURE member_payment_history_report(
+    p_member_id IN CHAR
+) AS
+    CURSOR cur_payment IS
+        SELECT
+            PaymentID,
+            PaymentAmount,
+            PaymentDate,
+            PaymentMethod,
+            TransactionReference,
+            FineID,
+            NVL(CampaignID, 'None') AS CampaignID
+        FROM Payment
+        WHERE MemberID = p_member_id
+        ORDER BY PaymentDate;
+
+    v_member_name        VARCHAR2(100);
+    v_campaign_name      VARCHAR2(100);
+    v_total_paid_amount  NUMBER := 0;
+    v_total_payments     NUMBER := 0;
+BEGIN
+    -- Get member name
+    SELECT FirstName || ' ' || LastName
+    INTO v_member_name
+    FROM Members
+    WHERE MemberID = p_member_id;
+
+    -- Header (member info shown first, totals after we loop)
+    DBMS_OUTPUT.PUT_LINE('');
+    DBMS_OUTPUT.PUT_LINE('╔════════════════════════════════════════════════════════════════════╗');
+    DBMS_OUTPUT.PUT_LINE('║                     MEMBER PAYMENT HISTORY REPORT                  ║');
+    DBMS_OUTPUT.PUT_LINE('╠════════════════════════════════════════════════════════════════════╣');
+    DBMS_OUTPUT.PUT_LINE('║ Member Name: ' || RPAD(v_member_name, 44) || '(' || RPAD(p_member_id, 8) || ')'||'║');
+    DBMS_OUTPUT.PUT_LINE('╚════════════════════════════════════════════════════════════════════╝');
+
+    -- Loop through payments
+    FOR rec IN cur_payment LOOP
+        v_total_payments := v_total_payments + 1;
+        v_total_paid_amount := v_total_paid_amount + rec.PaymentAmount;
+
+        -- Get campaign name if exists
+        IF rec.CampaignID != 'None' THEN
+            SELECT CampaignName INTO v_campaign_name
+            FROM Campaign
+            WHERE CampaignID = rec.CampaignID;
+        ELSE
+            v_campaign_name := 'None';
+        END IF;
+
+        -- Detail output
+        DBMS_OUTPUT.PUT_LINE('Payment ID      : ' || rec.PaymentID);
+        DBMS_OUTPUT.PUT_LINE('Date            : ' || TO_CHAR(rec.PaymentDate, 'DD-MON-YYYY'));
+        DBMS_OUTPUT.PUT_LINE('Amount Paid     : $' || TO_CHAR(rec.PaymentAmount, '9990.99'));
+        DBMS_OUTPUT.PUT_LINE('Method          : ' || rec.PaymentMethod || ' | Ref: ' || rec.TransactionReference);
+        DBMS_OUTPUT.PUT_LINE('Fine ID         : ' || rec.FineID);
+        DBMS_OUTPUT.PUT_LINE('Campaign Used   : ' || v_campaign_name);
+        DBMS_OUTPUT.PUT_LINE('----------------------------------------------------------------------');
+    END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('');
+    DBMS_OUTPUT.PUT_LINE('╔════════════════════════════════════════════════════════════════════╗');
+    DBMS_OUTPUT.PUT_LINE('║                            TOTAL PAYMENT                           ║');
+    DBMS_OUTPUT.PUT_LINE('╠════════════════════════════════════════════════════════════════════╣');
+    DBMS_OUTPUT.PUT_LINE('║ Total Fine paid  : ' || RPAD(v_total_payments, 48) || '║');
+    DBMS_OUTPUT.PUT_LINE('║ Total Amount     : $' || RPAD(TO_CHAR(v_total_paid_amount, '9990.99'), 47) || '║');
+    DBMS_OUTPUT.PUT_LINE('╚════════════════════════════════════════════════════════════════════╝');
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('Member ID not found or no payment history.');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/

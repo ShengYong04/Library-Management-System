@@ -1,0 +1,20 @@
+COLUMN CampaignID         FORMAT A12         HEADING 'Campaign ID'
+COLUMN CampaignName       FORMAT A35         HEADING 'Campaign Name'
+COLUMN ApplicationStatus  FORMAT A12         HEADING 'Status'
+COLUMN TotalApplications  FORMAT 999         HEADING 'Total Apps'
+
+SELECT 
+    c.CampaignID,
+    c.CampaignName,
+    a.ApplicationStatus,
+    COUNT(*) AS TotalApplications
+FROM 
+    Campaign c
+JOIN 
+    Application a ON c.CampaignID = a.CampaignID
+WHERE 
+    a.ApplicationDate >= ADD_MONTHS(SYSDATE, -12)  -- within 1 year from today
+GROUP BY 
+    c.CampaignID, c.CampaignName, a.ApplicationStatus
+ORDER BY 
+    c.CampaignID, a.ApplicationStatus;

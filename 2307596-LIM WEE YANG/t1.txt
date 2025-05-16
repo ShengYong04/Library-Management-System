@@ -1,0 +1,77 @@
+CREATE OR REPLACE TRIGGER trg_loan_bi
+BEFORE INSERT ON Loan
+FOR EACH ROW
+DECLARE
+  v_status BookCopy.AvailabilityStatus%TYPE;
+  v_active_loans     INTEGER;
+  v_samebook_count   INTEGER;
+  v_bookid           Book.BookID%TYPE;
+BEGIN
+  SELECT COUNT(*) 
+    INTO v_active_loans
+    FROM Loan l
+  WHERE l.MemberID    = :NEW.MemberID
+    AND l.LoanStatus IN ('VALID','OVERDUE');
+
+  IF v_active_loans >= 8 THEN
+    RAISE_APPLICATION_ERROR(
+      -20010,
+      'Member '||:NEW.MemberID||' already has 8 active loans, cannot borrow more.'
+    );
+  END IF;
+
+  SELECT bc.BookID 
+    INTO v_bookid
+    FROM BookCopy bc
+   WHERE bc.BookCopyID = :NEW.BookCopyID;
+
+  SELECT COUNT(*)
+    INTO v_samebook_count
+    FROM Loan l2
+    JOIN BookCopy bc2 ON l2.BookCopyID = bc2.BookCopyID
+  WHERE l2.MemberID    = :NEW.MemberID
+    AND l2.LoanStatus IN ('VALID','OVERDUE')
+    AND bc2.BookID     = v_bookid;
+
+  IF v_samebook_count > 0 THEN
+    RAISE_APPLICATION_ERROR(
+      -20011,
+      'Member '||:NEW.MemberID||
+      ' already has an active loan for book '||v_bookid
+    );
+  END IF;
+
+  SELECT AvailabilityStatus 
+    INTO v_status
+    FROM BookCopy
+   WHERE BookCopyID = :NEW.BookCopyID
+     FOR UPDATE NOWAIT;
+
+  IF UPPER(v_status) <> 'AVAILABLE' THEN
+    RAISE_APPLICATION_ERROR(
+      -20001,
+      'BookCopy ' || :NEW.BookCopyID || 
+      ' is not available (status=' || v_status || ')'
+    );
+  END IF;
+
+  SELECT 'LN' || LPAD(seq_loan_number.NEXTVAL, 6, '0')
+    INTO :NEW.LoanID
+  FROM dual;
+
+  :NEW.LoanStatus := 'VALID';
+
+  UPDATE BookCopy
+     SET AvailabilityStatus = 'BORROWED'
+   WHERE BookCopyID = :NEW.BookCopyID;
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(
+      -20001,
+      'BookCopy ' || :NEW.BookCopyID || ' does not exist'
+    );
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20099, 'Unexpected error: ' || SQLERRM);
+END;
+/

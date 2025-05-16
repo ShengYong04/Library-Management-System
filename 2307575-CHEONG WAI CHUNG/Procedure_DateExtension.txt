@@ -1,0 +1,53 @@
+CREATE OR REPLACE PROCEDURE ExtendBookLoan (
+    p_LoanID IN CHAR
+)
+IS
+    v_BorrowDate DATE;
+    v_DueDate DATE;
+    v_LoanStatus VARCHAR2(15);
+    v_DaysDiff NUMBER;
+BEGIN
+    -- Retrieve loan info
+    SELECT BorrowDate, DueDate, LoanStatus
+    INTO v_BorrowDate, v_DueDate, v_LoanStatus
+    FROM Loan
+    WHERE LoanID = p_LoanID;
+
+    -- Only allow extension if status is VALID
+    IF UPPER(v_LoanStatus) != 'VALID' THEN
+        DBMS_OUTPUT.PUT_LINE('Cannot extend: Loan status is not VALID.');
+        RETURN;
+    END IF;
+
+    -- Check if DueDate has already passed
+    IF TRUNC(v_DueDate) < TRUNC(SYSDATE) THEN
+        DBMS_OUTPUT.PUT_LINE('Cannot extend: Loan is already overdue.');
+        RETURN;
+    END IF;
+
+    -- Check if original loan period is exactly 7 days (meaning it has not been extended yet)
+    v_DaysDiff := v_DueDate - v_BorrowDate;
+
+    IF v_DaysDiff > 7 THEN
+        DBMS_OUTPUT.PUT_LINE('Cannot extend: Already extended once.');
+        RETURN;
+    END IF;
+
+    -- Extend due date by 3 days
+    UPDATE Loan
+    SET DueDate = DueDate + 3
+    WHERE LoanID = p_LoanID;
+
+    DBMS_OUTPUT.PUT_LINE('Loan due date successfully extended by 3 days. New Due Date: ' || TO_CHAR(v_DueDate + 3, 'MM/DD/YYYY'));
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Loan ID not found.');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Unexpected error: ' || SQLERRM);
+END;
+/
+
+/*
+EXEC ExtendBookLoan('LN000468'); --not VALID
+EXEC ExtendBookLoan('LN000470');
+*/

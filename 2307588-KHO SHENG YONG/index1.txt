@@ -1,0 +1,2 @@
+CREATE INDEX idx_reservation_status_member
+  ON Reservation (ReservationStatus, MemberID);

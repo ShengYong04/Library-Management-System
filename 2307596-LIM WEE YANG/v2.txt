@@ -1,0 +1,31 @@
+CREATE OR REPLACE VIEW v_book_search AS
+SELECT 
+  b.BookID,
+  b.BookTitle,
+  b.BookAuthor,
+  b.Genre,
+  b.BookPublisher,
+  b.PublicationYear,
+  NVL(a.available_copies, 0) AS available_copies,
+  NVL(t.total_copies, 0) AS total_copies,
+  NVL(lc.total_loans, 0) AS Popularity
+FROM Book b
+LEFT JOIN (
+    SELECT BookID, COUNT(BookCopyID) AS available_copies
+    FROM BookCopy
+    WHERE UPPER(AvailabilityStatus) = 'AVAILABLE'
+    GROUP BY BookID
+) a ON b.BookID = a.BookID
+LEFT JOIN (
+    SELECT BookID, COUNT(BookCopyID) AS total_copies
+    FROM BookCopy
+    GROUP BY BookID
+) t ON b.BookID = t.BookID
+LEFT JOIN (
+  SELECT 
+    bc.BookID,
+    COUNT(l.LoanID) AS total_loans
+  FROM Loan l
+  JOIN BookCopy bc ON l.BookCopyID = bc.BookCopyID
+  GROUP BY bc.BookID
+) lc ON b.BookID = lc.BookID;

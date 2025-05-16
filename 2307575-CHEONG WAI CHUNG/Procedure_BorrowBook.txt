@@ -1,0 +1,109 @@
+SET serveroutput on
+CREATE OR REPLACE PROCEDURE BorrowBook (
+    p_MemberID      IN CHAR,
+    p_BookCopyID    IN CHAR,
+    p_ExtendDays    IN NUMBER DEFAULT 0
+) AS
+    v_newLoanID             Loan.LoanID%TYPE;
+    v_Status                BookCopy.AvailabilityStatus%TYPE;
+    v_MembershipStatus      Members.MembershipStatus%TYPE;
+    v_ActiveLoans           NUMBER;
+    v_BookID                BookCopy.BookCopyID%TYPE;
+    v_AlreadyBorrowed       NUMBER;
+    v_ReservedBySameMember  NUMBER;
+    v_LatestLoanDate        DATE;
+    v_DueDate               DATE := SYSDATE + 14 + NVL(p_ExtendDays, 0);
+
+BEGIN
+    -- Check member status
+    SELECT MembershipStatus INTO v_MembershipStatus
+    FROM Members
+    WHERE MemberID = p_MemberID;
+
+    IF v_MembershipStatus != 'ACTIVE' THEN
+        RAISE_APPLICATION_ERROR(-20081, 'Membership status is not active.');
+    END IF;
+
+    -- Check reaching maximum active loans of member
+    SELECT COUNT(*) INTO v_ActiveLoans
+    FROM Loan
+    WHERE MemberID = p_MemberID
+      AND LoanStatus IN ('VALID', 'OVERDUE');
+
+    IF v_ActiveLoans >= 8 THEN
+        RAISE_APPLICATION_ERROR(-20082, 'Member has reached maximum active loans.');
+    END IF;
+
+    -- Check if member already borrowed the same book copy
+    SELECT COUNT(*) INTO v_AlreadyBorrowed
+    FROM Loan L
+    WHERE L.MemberID = p_MemberID
+    AND L.BookCopyID = p_BookCopyID
+    AND L.LoanStatus IN ('VALID', 'OVERDUE');
+
+    IF v_AlreadyBorrowed > 0 THEN
+        RAISE_APPLICATION_ERROR(-20083, 'Member already borrowed the same book copy.');
+    END IF;
+
+    -- Get the latest borrow or return date for the book copy
+    SELECT MAX(NVL(ReturnDate, BorrowDate)) INTO v_LatestLoanDate
+    FROM Loan
+    WHERE BookCopyID = p_BookCopyID;
+
+    -- Check if BookCopy is available
+    SELECT AvailabilityStatus INTO v_Status
+    FROM BookCopy
+    WHERE BookCopyID = p_BookCopyID;
+
+    IF v_Status != 'AVAILABLE' THEN
+        IF v_Status = 'RESERVED' THEN
+            -- Check reservation made by same member after last borrow/return date
+            SELECT COUNT(*) INTO v_ReservedBySameMember
+            FROM Reservation R
+            JOIN BookCopy BC ON R.BookCopyID = BC.BookCopyID
+            WHERE R.MemberID = p_MemberID
+            AND R.BookCopyID = p_BookCopyID
+            AND R.ReservationStatus IN ('FULFILLED')
+            AND R.ReservationDate >= NVL(v_LatestLoanDate, TO_DATE('01/01/2025','MM/DD/YYYY'));
+
+            IF v_ReservedBySameMember = 0 THEN
+                RAISE_APPLICATION_ERROR(-20084, 'The book has been reserved and is currently not available.');
+            END IF;
+        ELSE
+            RAISE_APPLICATION_ERROR(-20085, 'This book is currently not available.');
+        END IF;
+    END IF;
+
+
+    -- Create new incremental loan id
+    SELECT 'LN' || LPAD(NVL(MAX(TO_NUMBER(SUBSTR(LoanID, 3))), 0) + 1, 6, '0')
+    INTO v_newLoanID
+    FROM Loan;
+
+    -- Insert Loan if successful
+    INSERT INTO Loan (
+        LoanID, BorrowDate, DueDate, ReturnDate, LoanStatus, BookCopyID, MemberID
+    ) VALUES (
+        v_newLoanID, SYSDATE, v_DueDate, NULL, 'VALID', p_BookCopyID, p_MemberID
+    );
+
+    -- Update BookCopy status
+    UPDATE BookCopy
+    SET AvailabilityStatus = 'BORROWED'
+    WHERE BookCopyID = p_BookCopyID;
+
+    DBMS_OUTPUT.PUT_LINE('Book with ID ' || p_BookCopyID || ' has been successfully borrowed by member with ID ' || p_MemberID || '.');
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20086, 'Invalid MemberID or BookCopyID.');
+    WHEN OTHERS THEN
+        RAISE_APPLICATION_ERROR(-20087, SQLERRM);
+END;
+/   
+/*
+EXEC BorrowBook('MB000025', 'BC000255'); -- self-borrowed
+EXEC BorrowBook('MB000024', 'BC000307'); -- borrowed by others
+EXEC BorrowBook('MB000024', 'BC000185'); -- reserved by others
+EXEC BorrowBook('MB000023', 'BC000285'); -- insert
+*/

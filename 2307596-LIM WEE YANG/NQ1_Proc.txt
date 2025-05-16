@@ -1,0 +1,100 @@
+-- ======================================================
+-- SET SERVEROUTPUT ON
+-- exec OverdueLoanByMember('MB000021')
+-- ======================================================
+
+CREATE OR REPLACE PROCEDURE OverdueLoanByMember (
+  p_MemberID IN Members.MEMBERID%TYPE
+) AS
+  CURSOR c1 IS
+    SELECT 
+      l.LoanID,
+      bc.BookCopyID,
+      b.BookTitle,
+      TO_CHAR(l.BorrowDate,'MM/DD/YYYY') AS BorrowDate,
+      TO_CHAR(l.DueDate,   'MM/DD/YYYY') AS DueDate,
+      TRUNC(SYSDATE) - TRUNC(l.DueDate)  AS Days_Overdue
+    FROM Loan l
+    JOIN BookCopy bc ON l.BookCopyID = bc.BookCopyID
+    JOIN Book     b  ON bc.BookID      = b.BookID
+    WHERE l.MemberID     = p_MemberID
+      AND l.ReturnDate   IS NULL
+      AND UPPER(l.LoanStatus) = 'OVERDUE'
+    ORDER BY Days_Overdue DESC;
+
+  v_count INTEGER := 0;   
+  v_dummy NUMBER;
+
+BEGIN
+  SELECT 1 
+    INTO v_dummy
+    FROM Members
+  WHERE MemberID = p_MemberID;
+
+  DBMS_OUTPUT.PUT_LINE('=====================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                       Overdue Loan List for Selected Member                       =');
+  DBMS_OUTPUT.PUT_LINE('=====================================================================================');
+  DBMS_OUTPUT.PUT_LINE('Generated on: ' || TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS'));
+  DBMS_OUTPUT.PUT_LINE('Member ID   : ' || p_MemberID || CHR(10));
+  DBMS_OUTPUT.PUT_LINE(
+    RPAD('Loan ID',8) || ' ' ||
+    RPAD('Copy ID',8)  || ' ' ||
+    RPAD('Title',30)  || ' ' ||
+    RPAD('Borrow Date',11)|| ' ' ||
+    RPAD('Due Date',10)|| ' ' ||
+    RPAD('Days Overdue',12)
+  );
+  DBMS_OUTPUT.PUT_LINE(
+    RPAD('-',8,'-') || ' ' ||
+    RPAD('-',8,'-') || ' ' ||
+    RPAD('-',30,'-') || ' ' ||
+    RPAD('-',11,'-') || ' ' ||
+    RPAD('-',10,'-') || ' ' ||
+    RPAD('-',12,'-')
+  );
+  
+  FOR rec IN c1 LOOP
+    v_count := v_count + 1;
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD(rec.LoanID,8)     || ' ' ||
+      RPAD(rec.BookCopyID,8)  || ' ' ||
+      RPAD(SUBSTR(rec.BookTitle,1,30),30) || ' ' ||
+      RPAD(rec.BorrowDate,11) || ' ' ||
+      RPAD(rec.DueDate,10)    || ' ' ||
+      LPAD(rec.Days_Overdue,12)
+    );
+  END LOOP;
+
+  IF v_count = 0 THEN
+    RAISE_APPLICATION_ERROR(
+        -20012,
+        '=====================================================================================' || CHR(10) ||
+        'No overdue loans found for Member ' || p_MemberID || CHR(10) ||
+        '====================================================================================='
+    );
+  ELSE
+    DBMS_OUTPUT.PUT_LINE(CHR(10) || '-------------------------------------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Total Overdue Records: ' || v_count);
+    DBMS_OUTPUT.PUT_LINE('=====================================================================================');
+    DBMS_OUTPUT.PUT_LINE('=                            End of Overdue Loan Listing                            =');
+    DBMS_OUTPUT.PUT_LINE('=====================================================================================');
+  END IF;
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(
+        -20011,
+        '=====================================================================================' || CHR(10) ||
+        'Error: Member ID ' || p_MemberID || ' does not exist.' || CHR(10) ||
+        '====================================================================================='
+    );
+
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(
+        -20099,
+        '=====================================================================================' || CHR(10) ||
+        'Unexpected error in OverdueLoanByMember: ' || SQLERRM || CHR(10) ||
+        '====================================================================================='
+    );
+END;
+/

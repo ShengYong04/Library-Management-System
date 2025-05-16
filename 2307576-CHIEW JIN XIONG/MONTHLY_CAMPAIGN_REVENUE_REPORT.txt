@@ -1,0 +1,43 @@
+create or replace PROCEDURE monthly_campaign_report(
+    p_year IN NUMBER
+) AS
+    CURSOR cur_month IS
+        SELECT DISTINCT TO_CHAR(PaymentDate, 'MM') AS month_num
+        FROM Payment
+        WHERE TO_CHAR(PaymentDate, 'YYYY') = TO_CHAR(p_year)
+        ORDER BY month_num;
+
+    CURSOR cur_campaign(p_month VARCHAR2) IS
+        SELECT
+            NVL(c.CampaignName, 'No Campaign') AS Campaign,
+            SUM(p.PaymentAmount) AS Revenue
+        FROM Payment p
+        LEFT JOIN Campaign c ON p.CampaignID = c.CampaignID
+        WHERE TO_CHAR(p.PaymentDate, 'YYYY') = TO_CHAR(p_year)
+          AND TO_CHAR(p.PaymentDate, 'MM') = p_month
+        GROUP BY c.CampaignName;
+
+BEGIN
+        DBMS_OUTPUT.PUT_LINE('╔════════════════════════════════════════════════════╗');
+        DBMS_OUTPUT.PUT_LINE('║        Monthly Revenue Summary by Campaign         ║');
+        DBMS_OUTPUT.PUT_LINE('╚════════════════════════════════════════════════════╝');
+
+    FOR rec_month IN cur_month LOOP
+        DBMS_OUTPUT.PUT_LINE(' ');
+        DBMS_OUTPUT.PUT_LINE('Month: ' || TO_CHAR(TO_DATE(rec_month.month_num, 'MM'), 'Month'));
+
+        FOR rec_campaign IN cur_campaign(rec_month.month_num) LOOP
+            DBMS_OUTPUT.PUT_LINE('- ' || RPAD(rec_campaign.Campaign, 30) || ' : $' || TO_CHAR(rec_campaign.Revenue, '9999.99'));
+        END LOOP;
+
+        DBMS_OUTPUT.PUT_LINE('------------------------------------------------------');
+    END LOOP;
+        DBMS_OUTPUT.PUT_LINE('╔════════════════════════════════════════════════════╗');
+        DBMS_OUTPUT.PUT_LINE('║                 End of the Report                  ║');
+        DBMS_OUTPUT.PUT_LINE('╚════════════════════════════════════════════════════╝');
+
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/

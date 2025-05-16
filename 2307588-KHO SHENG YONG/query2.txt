@@ -1,0 +1,28 @@
+SET PAGESIZE 300
+SET LINESIZE 100
+SET FEEDBACK OFF
+SET VERIFY  OFF
+
+TTITLE CENTER '=== List of Members with Unpaid Fines ===' SKIP 2
+
+
+COLUMN MemberID     FORMAT A10     HEADING 'Member ID'
+COLUMN MemberName   FORMAT A25     HEADING 'Member Name'
+COLUMN LoanID       FORMAT A10     HEADING 'Loan ID'
+COLUMN LoanStatus   FORMAT A15     HEADING 'Loan Status'
+COLUMN FineID       FORMAT A10     HEADING 'Fine ID'
+COLUMN FineStatus   FORMAT A11     HEADING 'Fine Status'
+COLUMN FineAmount   FORMAT 9990.00 HEADING 'Fine Amount'
+
+SELECT *
+FROM v_unpaid_fines
+ORDER BY MemberID, FineAmount DESC;
+
+PROMPT  
+PROMPT ======================================================================================================
+PROMPT =                                            End of Listing                                          =
+PROMPT ======================================================================================================
+
+TTITLE OFF
+SET FEEDBACK ON
+SET VERIFY  ON

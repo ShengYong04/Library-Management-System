@@ -1,0 +1,63 @@
+Procedure 1
+EXEC CreateReservationRecord('MB000002','BC000001')
+
+Report1
+EXEC GenerateTopReservedBooks
+
+Procedure 2
+EXEC GenerateFineInvoice('MB000001');
+
+Success reservation
+EXEC CreateReservationRecord('MB000005','BC000003')
+
+Member not active
+EXEC CreateReservationRecord('MB000001','BC000002');
+
+BookCopy is not AVAILABLE
+EXEC CreateReservationRecord('MB000002', 'BC000003');
+
+Member already reserved same title
+EXEC CreateReservationRecord('MB000005','BC000006')
+
+
+Member has 8 active loans
+insert into Loan values('LN000901',TO_DATE('04/18/2025', 'MM/DD/YYYY'),TO_DATE('04/25/2025', 'MM/DD/YYYY'), NULL, 'VALID', 'BC000010', 'MB000025');
+insert into Loan values('LN000902',TO_DATE('04/18/2025', 'MM/DD/YYYY'),TO_DATE('04/26/2025', 'MM/DD/YYYY'), NULL, 'VALID', 'BC000020', 'MB000025');
+insert into Loan values('LN000903',TO_DATE('04/18/2025', 'MM/DD/YYYY'),TO_DATE('04/27/2025', 'MM/DD/YYYY'), NULL, 'VALID', 'BC000033', 'MB000025');
+insert into Loan values('LN000904',TO_DATE('04/18/2025', 'MM/DD/YYYY'),TO_DATE('04/28/2025', 'MM/DD/YYYY'), NULL, 'VALID', 'BC000037', 'MB000025');
+insert into Loan values('LN000905',TO_DATE('04/18/2025', 'MM/DD/YYYY'),TO_DATE('04/29/2025', 'MM/DD/YYYY'), NULL, 'VALID', 'BC000045', 'MB000025');
+insert into Loan values('LN000906',TO_DATE('04/18/2025', 'MM/DD/YYYY'),TO_DATE('04/29/2025', 'MM/DD/YYYY'), NULL, 'VALID', 'BC000055', 'MB000025');
+insert into Loan values('LN000907',TO_DATE('04/18/2025', 'MM/DD/YYYY'),TO_DATE('04/30/2025', 'MM/DD/YYYY'), NULL, 'VALID', 'BC000070', 'MB000025');
+EXEC CreateReservationRecord('MB000025','BC000180');
+
+
+Member already has 3 active reservations
+insert into Reservation values('RS000307',TO_DATE('03/26/2025', 'MM/DD/YYYY'),'READY', 'MB000022', 'BC000134');
+insert into Reservation values('RS000308',TO_DATE('03/26/2025', 'MM/DD/YYYY'),'READY', 'MB000022', 'BC000071');
+insert into Reservation values('RS000309',TO_DATE('03/26/2025', 'MM/DD/YYYY'),'READY', 'MB000022', 'BC000081');
+
+EXEC CreateReservationRecord('MB000022','BC000002');
+
+
+Trigger 2 Test Data
+
+Missing required field
+-- Missing Email and Phone
+INSERT INTO Members (MemberID, FirstName, LastName) VALUES ('MB000051', 'Tom', 'Lee');
+
+-- Active member 
+INSERT INTO Members
+VALUES (
+  'MB000102', 'Bob', 'Smith', 'bobsmith@example.com', '013-8765432',
+  TO_DATE('04/22/2022', 'MM/DD/YYYY'),
+  TO_DATE('04/22/2023', 'MM/DD/YYYY'),
+  'ACTIVE'
+);
+
+-- EndDate before StartDate
+INSERT INTO Members VALUES ('MB000103', 'Diana', 'Lee', 'diana@example.com', '014-9999999', TO_DATE('04/24/2025', 'MM/DD/YYYY'),TO_DATE('04/22/2025', 'MM/DD/YYYY'),'ACTIVE');
+
+
+
+
+

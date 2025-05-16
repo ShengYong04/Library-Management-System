@@ -1,0 +1,63 @@
+CREATE OR REPLACE PROCEDURE generate_payment_receipt(
+    p_payment_id IN CHAR
+) AS
+    v_member_name      VARCHAR2(100);
+    v_fine_amount      NUMBER;
+    v_payment_amount   NUMBER;
+    v_payment_date     DATE;
+    v_transaction_ref  VARCHAR2(12);
+    v_campaign_name    VARCHAR2(100);
+    v_discount_rate    NUMBER := 0;
+    v_discount_amount  NUMBER := 0;
+BEGIN
+    -- Retrieve payment details
+    SELECT 
+        m.FirstName || ' ' || m.LastName,
+        f.FineAmount,
+        p.PaymentAmount,
+        p.PaymentDate,
+        p.TransactionReference,
+        NVL(c.CampaignName, 'None'),
+        NVL(c.DiscountRate, 0)
+    INTO 
+        v_member_name,
+        v_fine_amount,
+        v_payment_amount,
+        v_payment_date,
+        v_transaction_ref,
+        v_campaign_name,
+        v_discount_rate
+    FROM Payment p
+    JOIN Fine f ON p.FineID = f.FineID
+    JOIN Members m ON p.MemberID = m.MemberID
+    LEFT JOIN Campaign c ON p.CampaignID = c.CampaignID
+    WHERE p.PaymentID = p_payment_id;
+    
+    -- Calculate discount if applicable
+    IF v_discount_rate > 0 THEN
+        v_discount_amount := v_fine_amount * (v_discount_rate / 100);
+    END IF;
+    
+    -- Output formatted receipt
+    DBMS_OUTPUT.PUT_LINE('');
+    DBMS_OUTPUT.PUT_LINE('╔═══════════════════════════════════════════════════════════╗');
+    DBMS_OUTPUT.PUT_LINE('║                   LIBRARY PAYMENT RECEIPT                 ║');
+    DBMS_OUTPUT.PUT_LINE('╠═══════════════════════════════════════════════════════════╣');
+    DBMS_OUTPUT.PUT_LINE('║ Payment ID      : ' || RPAD(p_payment_id, 40) || '║');
+    DBMS_OUTPUT.PUT_LINE('║ Date            : ' || TO_CHAR(v_payment_date, 'DD-MON-YYYY') || RPAD(' ', 40 - LENGTH(TO_CHAR(v_payment_date, 'DD-MON-YYYY'))) ||'║');
+    DBMS_OUTPUT.PUT_LINE('║ Member Name     : ' || RPAD(v_member_name, 40) || '║');
+    DBMS_OUTPUT.PUT_LINE('║ Transaction Ref : ' || RPAD(v_transaction_ref, 40) ||''||'║');
+    DBMS_OUTPUT.PUT_LINE('╠═══════════════════════════════════════════════════════════╣');
+    DBMS_OUTPUT.PUT_LINE('║ Original Fine   : $' || TO_CHAR(v_fine_amount, '9990.99') || RPAD(' ', 39 - LENGTH(TO_CHAR(v_fine_amount, '9990.99'))) || '║');
+    DBMS_OUTPUT.PUT_LINE('║ Campaign        : ' || RPAD(v_campaign_name || ' ('||'' || v_discount_rate || '%)', 40) || '║');
+    DBMS_OUTPUT.PUT_LINE('║ Discount Amount : $' || TO_CHAR(v_discount_amount, '9990.99') || RPAD(' ', 39 - LENGTH(TO_CHAR(v_discount_amount, '9990.99'))) || '║');
+    DBMS_OUTPUT.PUT_LINE('║ Amount Paid     : $' || TO_CHAR(v_payment_amount, '9990.99') || RPAD(' ', 39 - LENGTH(TO_CHAR(v_payment_amount, '9990.99'))) || '║');
+    DBMS_OUTPUT.PUT_LINE('╚═══════════════════════════════════════════════════════════╝');
+    DBMS_OUTPUT.PUT_LINE('         Thank you for your payment!');
+    DBMS_OUTPUT.PUT_LINE('');
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20002, 'Payment record not found');
+END;
+/

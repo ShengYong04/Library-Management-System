@@ -1,0 +1,14 @@
+create or replace TRIGGER trg_payment_id
+BEFORE INSERT ON Payment
+FOR EACH ROW
+BEGIN
+    IF :NEW.PaymentID IS NULL THEN
+        :NEW.PaymentID := 'PM' || LPAD(SEQ_PAYMENT_ID.NEXTVAL, 6, '0');
+    ELSE
+        -- Validate manually provided PaymentID format
+        IF NOT REGEXP_LIKE(:NEW.PaymentID, '^PM[0-9]{6}$') THEN
+            RAISE_APPLICATION_ERROR(-20013,
+                'Invalid PaymentID format. Must be PM followed by 6 digits');
+        END IF;
+    END IF;
+END;

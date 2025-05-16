@@ -1,0 +1,2 @@
+CREATE INDEX idx_book_gen_year
+  ON Book (Genre, PublicationYear);

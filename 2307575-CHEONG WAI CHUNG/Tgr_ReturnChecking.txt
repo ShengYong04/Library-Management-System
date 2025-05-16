@@ -1,0 +1,29 @@
+CREATE OR REPLACE TRIGGER trg_PreventDuplicateReturn 
+BEFORE UPDATE ON Loan 
+FOR EACH ROW 
+WHEN (NEW.ReturnDate IS NOT NULL OR NEW.LoanStatus IS NOT NULL) 
+DECLARE 
+    v_final_status SYS.ODCIVARCHAR2LIST := SYS.ODCIVARCHAR2LIST( 
+        'RETURNED', 'RETURNEDLATE', 'RETURNEDDAMAGED', 'MISSING' 
+    ); 
+    v_status_upper VARCHAR2(15);
+    i INTEGER;
+BEGIN 
+    v_status_upper := UPPER(:OLD.LoanStatus);
+
+    IF :OLD.ReturnDate IS NOT NULL AND :NEW.ReturnDate IS NOT NULL THEN 
+        RAISE_APPLICATION_ERROR(-20101, 'This book has already been returned.'); 
+    END IF; 
+
+    FOR i IN 1 .. v_final_status.COUNT LOOP
+        IF v_status_upper = v_final_status(i) THEN
+            RAISE_APPLICATION_ERROR(-20102, 'Loan has already been finalized as ' || :OLD.LoanStatus || '. Cannot update again.');
+        END IF;
+    END LOOP;
+END;
+/
+
+/*
+EXEC ReturnBook('LN000468', 'GOOD');
+EXEC ReturnBook('LN000472', 'MISSING');
+*/

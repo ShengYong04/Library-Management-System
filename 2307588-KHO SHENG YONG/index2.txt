@@ -1,0 +1,2 @@
+CREATE INDEX idx_fine_status_member 
+  ON Fine (FineStatus, MemberID);

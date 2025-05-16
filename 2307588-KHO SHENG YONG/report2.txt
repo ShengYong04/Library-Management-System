@@ -1,0 +1,82 @@
+SET PAGESIZE 250
+SET LINESIZE 200
+
+CREATE OR REPLACE PROCEDURE GenerateFineSummary AS
+  CURSOR c_month_summary IS
+    SELECT 
+      EXTRACT(YEAR FROM FineDate) AS FineYear,
+      EXTRACT(MONTH FROM FineDate) AS FineMonth,
+      COUNT(*) AS num_fines,
+      SUM(FineAmount) AS total_amount
+    FROM Fine
+    GROUP BY EXTRACT(YEAR FROM FineDate), EXTRACT(MONTH FROM FineDate)
+    ORDER BY FineYear, FineMonth;
+
+  CURSOR c_month_detail(p_year NUMBER, p_month NUMBER) IS
+    SELECT 
+      f.FineID,
+      f.FineDate,
+      f.FineAmount,
+      m.MemberID,
+      m.FirstName || ' ' || m.LastName AS FullName
+    FROM Fine f
+    JOIN Members m ON f.MemberID = m.MemberID
+    WHERE EXTRACT(YEAR FROM f.FineDate) = p_year
+      AND EXTRACT(MONTH FROM f.FineDate) = p_month
+    ORDER BY f.FineDate;
+
+  v_found BOOLEAN := FALSE;
+
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('==========================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                         Fine Summary by Month                          =');
+  DBMS_OUTPUT.PUT_LINE('==========================================================================');
+  DBMS_OUTPUT.PUT_LINE('Generated on: ' || TO_CHAR(SYSDATE, 'DD-MON-YYYY HH24:MI'));
+
+  FOR month_rec IN c_month_summary LOOP
+    v_found := TRUE;
+
+    DBMS_OUTPUT.PUT_LINE(CHR(10) || 'Year: ' || month_rec.FineYear || 
+                         ' | Month: ' || TO_CHAR(month_rec.FineMonth, '09') || 
+                         ' | Total Fines: ' || month_rec.num_fines || 
+                         ' | Total Amount: RM ' || TO_CHAR(month_rec.total_amount, '9990.00'));
+
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD('Fine ID', 10) || ' ' ||
+      RPAD('Date', 12) || ' ' ||
+      RPAD('Amount (RM)', 13) || ' ' ||
+      RPAD('Member ID', 10) || ' ' ||
+      RPAD('Member Name', 25)
+    );
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD('-', 10, '-') || ' ' ||
+      RPAD('-', 12, '-') || ' ' ||
+      RPAD('-', 13, '-') || ' ' ||
+      RPAD('-', 10, '-') || ' ' ||
+      RPAD('-', 25, '-')
+    );
+
+    FOR detail_rec IN c_month_detail(month_rec.FineYear, month_rec.FineMonth) LOOP
+      DBMS_OUTPUT.PUT_LINE(
+        RPAD(detail_rec.FineID, 10) || ' ' ||
+        RPAD(TO_CHAR(detail_rec.FineDate, 'DD-MON-YY'), 12) || ' ' ||
+        RPAD(TO_CHAR(detail_rec.FineAmount, '9990.00'), 13) || ' ' ||
+        RPAD(detail_rec.MemberID, 10) || ' ' ||
+        RPAD(detail_rec.FullName, 25)
+      );
+    END LOOP;
+  END LOOP;
+
+  IF NOT v_found THEN
+    DBMS_OUTPUT.PUT_LINE('No fine records found.');
+  END IF;
+
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '==========================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                              End of Report                             =');
+  DBMS_OUTPUT.PUT_LINE('==========================================================================');
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20002, 'Error in GenerateFineSummary: ' || SQLERRM);
+END;
+/

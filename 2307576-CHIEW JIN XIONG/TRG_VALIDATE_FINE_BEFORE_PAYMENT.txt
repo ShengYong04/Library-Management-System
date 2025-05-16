@@ -1,0 +1,23 @@
+create or replace TRIGGER trg_validate_fine
+BEFORE INSERT ON Payment
+FOR EACH ROW
+DECLARE
+    v_fine_status VARCHAR2(10);
+    v_fine_amount NUMBER;
+BEGIN
+    -- Get fine status and amount
+    SELECT FineStatus, FineAmount
+    INTO v_fine_status, v_fine_amount
+    FROM Fine
+    WHERE FineID = :NEW.FineID;
+
+    -- Validate fine is not already paid
+    IF v_fine_status = 'PAID' THEN
+        RAISE_APPLICATION_ERROR(-20010,
+            'Cannot process payment - Fine ' || :NEW.FineID || ' is already paid');
+    END IF;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20012, 'Invalid Fine ID: ' || :NEW.FineID);
+END;

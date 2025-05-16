@@ -1,0 +1,2 @@
+CREATE INDEX idx_loan_copy_status_due
+  ON Loan (LoanStatus, DueDate);

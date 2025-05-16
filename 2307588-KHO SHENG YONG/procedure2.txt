@@ -1,0 +1,57 @@
+CREATE OR REPLACE PROCEDURE GenerateFineInvoice(
+  p_memberid IN Members.MemberID%TYPE
+) IS
+  v_fullname     VARCHAR2(100);
+  v_count        NUMBER := 0;
+  v_total_fine   NUMBER := 0;
+
+  CURSOR c_fines IS
+    SELECT l.LoanID,
+           l.LoanStatus,
+           l.DueDate,
+           l.ReturnDate,
+           f.FineAmount
+      FROM Loan l
+      JOIN Fine f ON l.LoanID = f.LoanID
+     WHERE l.MemberID = p_memberid
+       AND UPPER(l.LoanStatus) IN ('RETURNEDLATE', 'MISSING')
+     ORDER BY l.DueDate;
+
+BEGIN
+  SELECT FirstName || ' ' || LastName
+    INTO v_fullname
+    FROM Members
+   WHERE MemberID = p_memberid;
+
+  DBMS_OUTPUT.PUT_LINE('***** Fine Invoice for ' || p_memberid || ' - ' || v_fullname || ' *****');
+  DBMS_OUTPUT.PUT_LINE('LoanID    | Status       |   Due Date  | Return Date | Fine(RM)');
+  DBMS_OUTPUT.PUT_LINE('---------------------------------------------------------------');
+
+  FOR rec IN c_fines LOOP
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD(rec.LoanID, 9) || ' | ' ||
+      RPAD(rec.LoanStatus, 12) || ' | ' ||
+      TO_CHAR(rec.DueDate, 'DD-MON-YYYY') || ' | ' ||
+      RPAD(NVL(TO_CHAR(rec.ReturnDate, 'DD-MON-YYYY'), '     -     '), 11) || ' | ' ||
+      LPAD(TO_CHAR(rec.FineAmount, 'FM9990.00'), 8)
+    );
+
+
+    v_total_fine := v_total_fine + rec.FineAmount;
+    v_count := v_count + 1;
+  END LOOP;
+
+  IF v_count = 0 THEN
+    RAISE_APPLICATION_ERROR(-20024, 'No fines for RETURNEDLATE or MISSING loans found for member ' || p_memberid);
+  END IF;
+
+  DBMS_OUTPUT.PUT_LINE('---------------------------------------------------------------');
+  DBMS_OUTPUT.PUT_LINE('Items: ' || v_count || ' | Total Fine Due: $' || TO_CHAR(v_total_fine, 'FM9990.00'));
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(-20025, 'Member not found: ' || p_memberid);
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20026, 'Unexpected error: ' || SQLERRM);
+END GenerateFineInvoice;
+/

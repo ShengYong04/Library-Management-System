@@ -1,0 +1,60 @@
+CREATE OR REPLACE TRIGGER trg_members_bi
+BEFORE INSERT ON Members
+FOR EACH ROW
+DECLARE
+  v_today DATE := TRUNC(SYSDATE);
+BEGIN
+  -- Validate required personal details
+  IF :NEW.FirstName IS NULL OR :NEW.LastName IS NULL
+     OR :NEW.Email IS NULL OR :NEW.Phone IS NULL THEN
+    RAISE_APPLICATION_ERROR(
+      -20011,
+      'First Name, Last Name, Email, and Phone must not be NULL.'
+    );
+  END IF;
+
+  -- Set default status to ACTIVE if not provided
+  IF :NEW.MembershipStatus IS NULL THEN
+    :NEW.MembershipStatus := 'ACTIVE';
+  END IF;
+
+  -- Set default StartDate to today if not provided
+  IF :NEW.StartDate IS NULL THEN
+    :NEW.StartDate := v_today;
+  END IF;
+
+  -- Set default EndDate to 2 years from StartDate if not provided
+  IF :NEW.EndDate IS NULL THEN
+    :NEW.EndDate := ADD_MONTHS(:NEW.StartDate, 24);
+  END IF;
+
+  -- Prevent ACTIVE status if EndDate is already in the past
+  IF UPPER(:NEW.MembershipStatus) = 'ACTIVE'
+     AND :NEW.EndDate < v_today THEN
+    RAISE_APPLICATION_ERROR(
+      -20010,
+      'Cannot insert ACTIVE member with EndDate in the past.'
+    );
+  END IF;
+
+  -- Validate that EndDate is not before StartDate
+  IF :NEW.EndDate < :NEW.StartDate THEN
+    RAISE_APPLICATION_ERROR(
+      -20003,
+      'EndDate (' || TO_CHAR(:NEW.EndDate, 'MM/DD/YYYY') || ') cannot be before StartDate (' || TO_CHAR(:NEW.StartDate, 'MM/DD/YYYY') || ')'
+    );
+  END IF;
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(
+      -20001,
+      'Data not found when updating member record'
+    );
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(
+      -20099,
+      'Unexpected error: ' || SQLERRM
+    );
+END;
+/

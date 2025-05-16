@@ -1,0 +1,21 @@
+CREATE OR REPLACE VIEW v_overdue_books_summary AS
+SELECT
+  bc.BookCopyID,
+  b.BookTitle,
+  l.MemberID,
+  m.FirstName || ' ' || m.LastName AS MemberName,
+  TO_CHAR(TRUNC(l.DueDate), 'MM/DD/YYYY') AS DueDate,
+  TRUNC(SYSDATE) - TRUNC(l.DueDate) AS Days_Overdue,
+  CASE
+    WHEN TRUNC(SYSDATE) - TRUNC(l.DueDate) <=  7 THEN 'Up to 1 Week'
+    WHEN TRUNC(SYSDATE) - TRUNC(l.DueDate) <= 30 THEN 'Up to 1 Month'
+    ELSE 'Over 1 Month'
+  END AS Overdue_Category
+FROM Loan l
+JOIN BookCopy bc ON l.BookCopyID = bc.BookCopyID
+JOIN Book b ON bc.BookID = b.BookID
+JOIN Members m ON l.MemberID = m.MemberID
+WHERE l.ReturnDate IS NULL
+  AND l.LoanStatus = 'OVERDUE'
+  AND l.DueDate < TRUNC(SYSDATE)
+ORDER BY TRUNC(SYSDATE) - TRUNC(l.DueDate) DESC;

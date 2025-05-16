@@ -1,0 +1,146 @@
+CREATE TABLE Members(
+    MemberID            CHAR(8)         NOT NULL,
+    FirstName           VARCHAR2(50)    NOT NULL,
+    LastName            VARCHAR2(25)    NOT NULL,
+    Email               VARCHAR2(80)    NOT NULL,
+    Phone               VARCHAR2(14)    NOT NULL,
+    StartDate           DATE            DEFAULT sysdate,
+    EndDate             DATE            NOT NULL,
+    MembershipStatus    VARCHAR2(9)     DEFAULT 'ACTIVE',
+    constraint pk_Members_MemberID Primary Key (MemberID),
+    constraint chk_Members_MemberID check (REGEXP_LIKE(MemberID, '^MB[0-9]{6}$')),
+    constraint chk_Members_Email check (REGEXP_LIKE(Email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')),
+    constraint chk_Members_Phone check (REGEXP_LIKE(Phone, '^\([0-9]{3}\) [0-9]{7}$')),
+    constraint chk_Members_MembershipStatus check (UPPER(MembershipStatus) in ('ACTIVE', 'SUSPENDED', 'EXPIRED')),
+    constraint chk_Members_ValidDate check (EndDate >= StartDate)
+);
+
+CREATE TABLE Book(
+    BookID              CHAR(8)         NOT NULL,
+    BookTitle           VARCHAR2(60)    NOT NULL,
+    BookAuthor          VARCHAR2(30)    NOT NULL,
+    Genre               VARCHAR2(15)    NOT NULL,
+    ISBN                CHAR(11)        NOT NULL,
+    BookPublisher       VARCHAR2(30)    NOT NULL,
+    PublicationYear     Number(4)       NOT NULL,
+    constraint pk_Book_BookID Primary Key (BookID),
+    constraint chk_Book_BookID check (REGEXP_LIKE(BookID, '^BK[0-9]{6}$')),
+    constraint chk_Book_Genre check (UPPER(Genre) in ('FICTION', 'NON-FICTION', 'FANTASY', 'SCI-FI', 'MYSTERY','ROMANCE', 'HORROR'))
+);
+
+CREATE TABLE BookCopy(
+    BookCopyID          CHAR(8)         NOT NULL,
+    AvailabilityStatus  VARCHAR2(9)     DEFAULT 'AVAILABLE',
+    BookID              CHAR(8)         NOT NULL,
+    constraint pk_BookCopy_BookCopyID Primary Key (BookCopyID),
+    constraint fk_BookCopy_BookID Foreign Key (BookID) references Book(BookID),
+    constraint chk_BookCopy_BookCopyID check (REGEXP_LIKE(BookCopyID, '^BC[0-9]{6}$')),
+    constraint chk_BookCopy_Status check (UPPER(AvailabilityStatus) in ('AVAILABLE', 'BORROWED', 'RESERVED', 'DAMAGED', 'MISSING')),
+    constraint chk_BookCopy_BookID check (REGEXP_LIKE(BookID, '^BK[0-9]{6}$'))
+);
+
+CREATE TABLE Loan(
+    LoanID              CHAR(8)         NOT NULL,
+    BorrowDate          DATE            DEFAULT sysdate,
+    DueDate             DATE            NOT NULL,
+    ReturnDate          DATE,
+    LoanStatus          VARCHAR2(15)     DEFAULT 'VALID',
+    BookCopyID          CHAR(8)         NOT NULL,
+    MemberID            CHAR(8)         NOT NULL,
+    constraint pk_Loan_LoanID Primary Key (LoanID),
+    constraint fk_Loan_BookCopyID Foreign Key (BookCopyID) references BookCopy(BookCopyID),
+    constraint fk_Loan_MemberID Foreign Key (MemberID) references Members(MemberID),
+    constraint chk_Loan_LoanID check (REGEXP_LIKE(LoanID, '^LN[0-9]{6}$')),
+    constraint chk_Loan_LoanStatus check (UPPER(LoanStatus) in ('VALID', 'OVERDUE', 'RETURNED', 'MISSING', 'RETURNEDLATE', 'RETURNEDDAMAGED')),
+    constraint chk_Loan_BookCopyID check (REGEXP_LIKE(BookCopyID, '^BC[0-9]{6}$')),
+    constraint chk_Loan_MemberID check (REGEXP_LIKE(MemberID, '^MB[0-9]{6}$')),
+    constraint chk_Loan_ValidDate check ((DueDate >= BorrowDate) AND (ReturnDate >= BorrowDate))
+);
+
+CREATE TABLE Reservation(
+    ReservationID       CHAR(8)         NOT NULL,
+    ReservationDate     DATE            DEFAULT sysdate,
+    ReservationStatus   VARCHAR2(9)     DEFAULT 'PLACED',
+    MemberID            CHAR(8)         NOT NULL,
+    BookCopyID          CHAR(8)         NOT NULL,
+    constraint pk_Reservation_ReservationID Primary Key (ReservationID),
+    constraint fk_Reservation_MemberID Foreign Key (MemberID) references Members(MemberID),
+    constraint fk_Reservation_BookCopyID Foreign Key (BookCopyID) references BookCopy(BookCopyID),
+    constraint chk_Reservation_ReservationID check (REGEXP_LIKE(ReservationID, '^RS[0-9]{6}$')),
+    constraint chk_Reservation_Status check (UPPER(ReservationStatus) in ('PLACED', 'READY', 'FULFILLED', 'CANCELLED')),
+    constraint chk_Reservation_MemberID check (REGEXP_LIKE(MemberID, '^MB[0-9]{6}$')),
+    constraint chk_Reservation_BookCopyID check (REGEXP_LIKE(BookCopyID, '^BC[0-9]{6}$'))
+);
+
+CREATE TABLE Campaign (
+    CampaignID      CHAR(8)         NOT NULL,
+    CampaignName    VARCHAR2(100)   NOT NULL,
+    Description     VARCHAR2(255),
+    DiscountRate    NUMBER(5, 2)    NOT NULL,
+    StartDate       DATE            NOT NULL,
+    EndDate         DATE            NOT NULL,
+    CampaignStatus  VARCHAR2(10)    DEFAULT 'INACTIVE',
+    CONSTRAINT pk_Campaign_CampaignID PRIMARY KEY (CampaignID),
+    CONSTRAINT chk_Campaign_CampaignID CHECK (REGEXP_LIKE(CampaignID, '^CM[0-9]{6}$')),
+    CONSTRAINT chk_Campaign_DiscountRate CHECK (DiscountRate BETWEEN 0 AND 100),
+    CONSTRAINT chk_Campaign_Dates CHECK (EndDate > StartDate),
+    CONSTRAINT chk_Campaign_Status CHECK (UPPER(CampaignStatus) IN ('INACTIVE', 'ACTIVE', 'EXPIRED'))
+);
+
+CREATE TABLE Application (
+    ApplicationID       CHAR(8)         NOT NULL,
+    ApplicationName     VARCHAR2(100)   NOT NULL,
+    ApplicationDate     DATE            NOT NULL,
+    ApplicationStatus   VARCHAR2(10)    DEFAULT 'PENDING',
+    MemberID            CHAR(8)         NOT NULL,
+    CampaignID          CHAR(8)         NOT NULL,
+    CONSTRAINT pk_Application_ApplicationID PRIMARY KEY (ApplicationID),
+    CONSTRAINT chk_Application_ApplicationID CHECK (REGEXP_LIKE(ApplicationID, '^AP[0-9]{6}$')),   
+    CONSTRAINT chk_Application_Status CHECK (UPPER(ApplicationStatus) IN ('PENDING', 'APPROVED', 'REJECTED')),
+    CONSTRAINT fk_Application_MemberID FOREIGN KEY (MemberID) REFERENCES Members(MemberID),
+    CONSTRAINT fk_Application_CampaignID FOREIGN KEY (CampaignID) REFERENCES Campaign(CampaignID)
+);
+
+CREATE TABLE Fine (
+    FineID CHAR(8)NOT NULL,
+    FineAmount NUMBER(10,2) NOT NULL,
+    FineDate DATE NOT NULL,
+    FineStatus VARCHAR2(10) DEFAULT 'UNPAID',
+    LoanID CHAR(8) NOT NULL,
+    MemberID CHAR(8) NOT NULL,
+    CONSTRAINT pk_Fine_FineID PRIMARY KEY (FineID),
+    CONSTRAINT fk_Fine_Loan FOREIGN KEY (LoanID) REFERENCES Loan(LoanID),
+    CONSTRAINT fk_Fine_Member FOREIGN KEY (MemberID) REFERENCES Members(MemberID),
+    CONSTRAINT chk_Fine_FineID CHECK (REGEXP_LIKE(FineID, '^FN[0-9]{6}$')),
+    CONSTRAINT chk_Fine_FineAmount CHECK (FineAmount > 0),
+    CONSTRAINT chk_Fine_FineStatus CHECK (UPPER(FineStatus) IN ('UNPAID', 'PAID')),
+    CONSTRAINT chk_Fine_LoanID check (REGEXP_LIKE(LoanID, '^LN[0-9]{6}$')),
+    CONSTRAINT chk_Fine_MemberID check (REGEXP_LIKE(MemberID, '^MB[0-9]{6}$'))
+);
+
+CREATE TABLE Payment (
+    PaymentID CHAR(8) NOT NULL,
+    PaymentAmount NUMBER(10, 2) NOT NULL,
+    PaymentDate DATE NOT NULL,
+    PaymentMethod CHAR(4) DEFAULT('CASH'),
+    TransactionReference VARCHAR2(12) NOT NULL UNIQUE,
+    FineID CHAR(8) NOT NULL,
+    CampaignID CHAR(8),
+    MemberID CHAR(8) NOT NULL,
+    CONSTRAINT pk_payment_paymentid PRIMARY KEY (PaymentID),
+    CONSTRAINT fk_Payment_FineID FOREIGN KEY (FineID) REFERENCES Fine(FineID),
+    CONSTRAINT fk_Payment_CampaignID FOREIGN KEY (CampaignID) REFERENCES Campaign(CampaignID),
+    CONSTRAINT fk_Payment_MemberID FOREIGN KEY (MemberID) REFERENCES Members(MemberID),
+    CONSTRAINT chk_Payment_PaymentID CHECK (REGEXP_LIKE(PaymentID, '^PM[0-9]{6}$')),
+    CONSTRAINT chk_Payment_PaymentAmount CHECK (PaymentAmount > 0),
+    CONSTRAINT chk_Payment_Method CHECK (UPPER(PaymentMethod) IN ('CASH', 'CARD')),
+    CONSTRAINT chk_Payment_TransactionRef CHECK (REGEXP_LIKE(TransactionReference, '^CASH[0-9]{8}$|^VISA[0-9]{8}$|^MC[0-9]{8}$|^AMEX[0-9]{8}$')),
+    CONSTRAINT chk_Payment_FineID CHECK (REGEXP_LIKE(FineID, '^FN[0-9]{6}$')),
+    CONSTRAINT chk_Payment_CampaignID CHECK (REGEXP_LIKE(CampaignID, '^CM[0-9]{6}$')),
+    CONSTRAINT chk_Payment_MemberID CHECK (REGEXP_LIKE(MemberID, '^MB[0-9]{6}$'))
+);
+
+
+    
+
+

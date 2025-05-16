@@ -1,0 +1,8 @@
+create or replace TRIGGER trg_payment_update_fine
+AFTER INSERT ON Payment
+FOR EACH ROW
+BEGIN
+    UPDATE Fine
+    SET FineStatus = 'PAID'
+    WHERE FineID = :NEW.FineID;
+END;

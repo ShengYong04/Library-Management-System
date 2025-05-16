@@ -1,0 +1,109 @@
+CREATE OR REPLACE PROCEDURE process_payment(
+    p_fine_id IN CHAR,
+    p_payment_method IN VARCHAR2,
+    p_campaign_id IN CHAR DEFAULT NULL
+) AS
+    v_discount_rate NUMBER := 0;
+    v_fine_amount NUMBER;
+    v_final_amount NUMBER;
+    v_payment_id CHAR(8);
+    v_transaction_ref VARCHAR2(12);
+    v_payment_method_code CHAR(4);
+    v_campaign_status VARCHAR2(10);
+    v_campaign_active BOOLEAN := FALSE;
+    v_member_id CHAR(8);
+    v_campaign_id_to_use CHAR(8);
+    v_current_fine_status VARCHAR2(10);
+BEGIN
+    -- get Fine amount and member id
+    SELECT FineAmount, MemberID
+    INTO v_fine_amount, v_member_id
+    FROM Fine
+    WHERE FineID = p_fine_id;
+
+    -- determine payment method
+    IF UPPER(p_payment_method) IN ('VISA', 'AMEX', 'MC') THEN
+        v_payment_method_code := 'CARD';
+    ELSE
+        v_payment_method_code := 'CASH';
+    END IF;
+
+    -- Check is campaign available
+    IF p_campaign_id IS NOT NULL THEN
+        BEGIN
+            SELECT CampaignStatus, DiscountRate
+            INTO v_campaign_status, v_discount_rate
+            FROM Campaign
+            WHERE CampaignID = p_campaign_id
+              AND CampaignStatus = 'ACTIVE'
+              AND SYSDATE BETWEEN StartDate AND EndDate;
+
+            v_campaign_active := TRUE;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                v_campaign_active := FALSE;
+        END;
+    END IF;
+
+    IF v_campaign_active THEN
+        v_campaign_id_to_use := p_campaign_id;
+    ELSE
+        v_campaign_id_to_use := NULL;
+    END IF;
+
+    -- Use Function to calculate discount amount
+    v_final_amount := calculate_discounted_amount(v_fine_amount, p_campaign_id);
+
+    -- generatae transaction reference
+    v_transaction_ref := UPPER(p_payment_method) ||
+                         LPAD(TO_CHAR(TRUNC(DBMS_RANDOM.VALUE(0, 99999999))), 8, '0');
+
+    -- insert payment
+    INSERT INTO Payment (
+        PaymentAmount,
+        PaymentDate,
+        PaymentMethod,
+        TransactionReference,
+        FineID,
+        CampaignID,
+        MemberID
+    )
+    VALUES (
+        v_final_amount,
+        SYSDATE,
+        v_payment_method_code,
+        v_transaction_ref,
+        p_fine_id,
+        v_campaign_id_to_use,
+        v_member_id
+    )
+    RETURNING PaymentID INTO v_payment_id;
+
+    -- update fine to paid
+    UPDATE Fine
+    SET FineStatus = 'PAID'
+    WHERE FineID = p_fine_id;
+
+    COMMIT;
+
+    -- output
+    DBMS_OUTPUT.PUT_LINE('Payment processed successfully');
+    DBMS_OUTPUT.PUT_LINE('Payment ID: ' || v_payment_id);
+    DBMS_OUTPUT.PUT_LINE('Amount: ' || TO_CHAR(v_final_amount, '9990.99'));
+    DBMS_OUTPUT.PUT_LINE('Transaction Ref: ' || v_transaction_ref);
+    DBMS_OUTPUT.PUT_LINE('Method: ' || v_payment_method_code);
+    DBMS_OUTPUT.PUT_LINE('Member ID: ' || v_member_id);
+    IF v_campaign_active THEN
+        DBMS_OUTPUT.PUT_LINE('Discount Applied: ' || v_discount_rate || '%');
+    END IF;
+
+-- Error handling
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        ROLLBACK;
+        RAISE_APPLICATION_ERROR(-20002, 'Invalid Fine ID or related data not found for ' || p_fine_id);
+    WHEN OTHERS THEN
+        ROLLBACK;
+        RAISE_APPLICATION_ERROR(-20003, 'Payment failed: ' || SQLERRM);
+END;
+/

@@ -1,0 +1,30 @@
+SET PAGESIZE 50
+SET LINESIZE 75
+SET FEEDBACK OFF
+SET VERIFY OFF
+
+TTITLE CENTER '---------==== ANNUAL PAYMENT TRENDS ====---------' SKIP 2
+
+ACCEPT p_year PROMPT 'Enter year: '
+ACCEPT p_month PROMPT 'Enter month (in number,or leave blank for whole year) : '
+
+COLUMN Year FORMAT 9999
+COLUMN Month FORMAT 9999
+COLUMN CampaignName       FORMAT A31         HEADING 'Campaign Name'
+COLUMN TotalRevenue FORMAT $999,999.99
+COLUMN TransactionCount   FORMAT 9999        HEADING 'Transaction Count'
+
+SELECT * FROM vw_payment_trends
+WHERE 
+    Year = TO_NUMBER('&p_year')
+    AND ( '&p_month' IS NULL OR Month = TO_NUMBER('&p_month') );
+
+
+PROMPT
+PROMPT ===========================================================================
+PROMPT |                       End of Payment Trends Report                      |
+PROMPT ===========================================================================
+
+TTITLE OFF
+SET FEEDBACK ON
+SET VERIFY ON

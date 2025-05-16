@@ -1,0 +1,63 @@
+CREATE OR REPLACE PROCEDURE ReturnBook (
+    p_LoanID     IN CHAR,
+    p_Condition  IN VARCHAR2 DEFAULT 'GOOD'  -- 'GOOD', 'DAMAGED', or 'MISSING'
+) AS
+    v_BookCopyID     BookCopy.BookCopyID%TYPE;
+    v_ReturnDate     DATE := SYSDATE;
+    v_DueDate        DATE;
+    v_CurrentStatus  Loan.LoanStatus%TYPE;
+    v_Status         VARCHAR2(20);
+BEGIN
+    -- Validate p_Condition
+    IF UPPER(p_Condition) NOT IN ('GOOD', 'DAMAGED', 'MISSING') THEN
+        RAISE_APPLICATION_ERROR(-20088, 'Invalid return condition. Must be GOOD, DAMAGED, or MISSING.');
+    END IF;
+
+    -- Fetch BookCopyID, DueDate, and current LoanStatus
+    SELECT BookCopyID, DueDate, LoanStatus
+    INTO v_BookCopyID, v_DueDate, v_CurrentStatus
+    FROM Loan
+    WHERE LoanID = p_LoanID;
+
+    -- Determine new loan status based on return condition and timing
+    IF UPPER(p_Condition) = 'MISSING' THEN
+        v_Status := 'MISSING';
+
+    ELSIF UPPER(p_Condition) = 'DAMAGED' THEN
+        v_Status := 'RETURNEDDAMAGED';
+
+    ELSIF v_ReturnDate > v_DueDate THEN
+        v_Status := 'RETURNEDLATE';
+
+    ELSE
+        v_Status := 'RETURNED';
+    END IF;
+
+    -- Update Loan record
+    UPDATE Loan
+    SET ReturnDate = v_ReturnDate,
+        LoanStatus = v_Status
+    WHERE LoanID = p_LoanID;
+
+    -- Only mark book as AVAILABLE if not MISSING
+    IF v_Status != 'MISSING' THEN
+        UPDATE BookCopy
+        SET AvailabilityStatus = 'AVAILABLE'
+        WHERE BookCopyID = v_BookCopyID;
+    END IF;
+
+    DBMS_OUTPUT.PUT_LINE('Book with Loan ID ' || p_LoanID || ' successfully returned. New status: ' || v_Status);
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20089, 'Invalid LoanID.');
+    WHEN OTHERS THEN
+        RAISE_APPLICATION_ERROR(-20090, SQLERRM);
+END;
+/
+
+/*
+EXEC ReturnBook('LN000468', 'GOOD');
+EXEC ReturnBook('LN000500', 'GOOD');
+EXEC ReturnBook('LN000471', 'DAMAGED');
+*/

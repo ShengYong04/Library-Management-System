@@ -1,0 +1,83 @@
+CREATE OR REPLACE PROCEDURE RegisterCampaignApplication (
+    p_MemberID   IN CHAR,
+    p_CampaignID IN CHAR
+) AS
+    v_ApplicationCount INTEGER;
+    v_CampaignStatus   Campaign.CampaignStatus%TYPE;
+    v_StartDate        DATE;
+    v_EndDate          DATE;
+    v_Status           VARCHAR2(10);
+    v_NewAppID         CHAR(8);
+    v_CampaignName     VARCHAR2(100);
+BEGIN
+    -- Check campaign info
+    SELECT CampaignStatus, StartDate, EndDate, CampaignName
+    INTO v_CampaignStatus, v_StartDate, v_EndDate, v_CampaignName
+    FROM Campaign
+    WHERE CampaignID = p_CampaignID;
+
+    -- Check duplicate application
+    SELECT COUNT(*)
+    INTO v_ApplicationCount
+    FROM Application
+    WHERE MemberID = p_MemberID
+      AND CampaignID = p_CampaignID
+      AND UPPER(ApplicationStatus) IN ('PENDING', 'APPROVED');
+
+    IF v_ApplicationCount > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'You have already applied or are pending for this campaign.');
+    END IF;
+
+    -- Determine status
+    IF SYSDATE BETWEEN v_StartDate AND v_EndDate THEN
+        v_Status := 'PENDING';
+    ELSE
+        v_Status := 'REJECTED';
+    END IF;
+
+    -- Generate next ApplicationID
+    SELECT 'AP' || LPAD(NVL(MAX(TO_NUMBER(SUBSTR(ApplicationID, 3))), 0) + 1, 6, '0')
+    INTO v_NewAppID
+    FROM Application;
+
+    -- Insert application
+    INSERT INTO Application (
+        ApplicationID,
+        ApplicationName,
+        ApplicationDate,
+        ApplicationStatus,
+        MemberID,
+        CampaignID
+    ) VALUES (
+        v_NewAppID,
+        v_CampaignName || ' Registration',
+        SYSDATE,
+        v_Status,
+        p_MemberID,
+        p_CampaignID
+    );
+
+    -- Check if this is the first application
+    SELECT COUNT(*)
+    INTO v_ApplicationCount
+    FROM Application
+    WHERE CampaignID = p_CampaignID;
+
+    IF v_ApplicationCount = 1 THEN
+        UPDATE Campaign
+        SET CampaignStatus = 'ACTIVE'
+        WHERE CampaignID = p_CampaignID;
+    END IF;
+
+    DBMS_OUTPUT.PUT_LINE('Application ' || v_NewAppID || ' submitted. Status: ' || v_Status);
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20002, 'Campaign not found.');
+    WHEN OTHERS THEN
+        RAISE_APPLICATION_ERROR(-20003, SQLERRM);
+END;
+/
+/*
+EXEC RegisterCampaignApplication('MB000024', 'CM000024');
+*/

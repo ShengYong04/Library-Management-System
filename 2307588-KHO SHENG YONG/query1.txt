@@ -1,0 +1,30 @@
+SET SERVEROUTPUT OFF
+SET PAGESIZE 100
+SET LINESIZE 150
+SET FEEDBACK OFF
+SET VERIFY  OFF
+
+TTITLE CENTER '=== List of Top Reserved Books ===' SKIP 2
+
+COLUMN BookID          FORMAT A9     HEADING 'Book ID'
+COLUMN BookTitle       FORMAT A37    HEADING 'Title'
+COLUMN BookAuthor      FORMAT A17    HEADING 'Author'
+COLUMN Genre           FORMAT A13    HEADING 'Genre'
+COLUMN BookPublisher   FORMAT A23    HEADING 'Publisher'
+COLUMN PublicationYear FORMAT 9999   HEADING 'Year'
+COLUMN AvailableCopies FORMAT 9990   HEADING 'Available'
+COLUMN TotalCopies     FORMAT 9990   HEADING 'Total'
+COLUMN Reserved        FORMAT 9990   HEADING 'Reserved'
+
+SELECT *
+FROM v_top_reserved_books
+ORDER BY Reserved DESC;
+
+PROMPT
+PROMPT ======================================================================================================================================  
+PROMPT =                                                            End of Listing                                                          =
+PROMPT ====================================================================================================================================== 
+
+TTITLE OFF
+SET FEEDBACK ON
+SET VERIFY  ON

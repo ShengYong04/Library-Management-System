@@ -1,0 +1,120 @@
+-- ======================================================
+-- SET SERVEROUTPUT ON
+-- exec SummariseOverduesByCategory
+-- ======================================================
+
+CREATE OR REPLACE PROCEDURE SummariseOverduesByCategory AS
+  CURSOR c_cat IS
+    SELECT CASE 
+             WHEN TRUNC(SYSDATE) - TRUNC(l.DueDate) <=  7 THEN 'Up to 1 Week'
+             WHEN TRUNC(SYSDATE) - TRUNC(l.DueDate) <= 30 THEN 'Up to 1 Month'
+             ELSE 'Over 1 Month'
+           END AS category,
+           COUNT(*) AS cnt
+    FROM Loan l
+    WHERE l.ReturnDate IS NULL
+      AND UPPER(l.LoanStatus) = 'OVERDUE'
+      AND l.DueDate  < TRUNC(SYSDATE)
+    GROUP BY CASE 
+               WHEN TRUNC(SYSDATE) - TRUNC(l.DueDate) <=  7 THEN 'Up to 1 Week'
+               WHEN TRUNC(SYSDATE) - TRUNC(l.DueDate) <= 30 THEN 'Up to 1 Month'
+               ELSE 'Over 1 Month'
+             END
+    ORDER BY 1;
+  
+  CURSOR c_det(p_cat VARCHAR2) IS
+    SELECT 
+      bc.BookCopyID,
+      b.BookTitle,
+      m.MemberID,
+      m.FirstName || ' ' || m.LastName AS FullName,
+      l.LoanID,
+      l.BorrowDate,
+      l.DueDate,
+      TRUNC(SYSDATE) - TRUNC(l.DueDate) AS days_overdue
+    FROM Loan l
+    JOIN BookCopy bc ON l.BookCopyID = bc.BookCopyID
+    JOIN Book b      ON bc.BookID = b.BookID
+    JOIN Members m   ON l.MemberID = m.MemberID
+    WHERE l.ReturnDate IS NULL
+      AND UPPER(l.LoanStatus) = 'OVERDUE'
+      AND l.DueDate < TRUNC(SYSDATE)
+      AND CASE 
+            WHEN TRUNC(SYSDATE) - TRUNC(l.DueDate) <= 7 THEN 'Up to 1 Week'
+            WHEN TRUNC(SYSDATE) - TRUNC(l.DueDate) <= 30 THEN 'Up to 1 Month'
+            ELSE 'Over 1 Month'
+          END = p_cat
+    ORDER BY days_overdue DESC, m.MemberID;
+  
+  v_found BOOLEAN := FALSE;
+
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('=========================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                             Overdue Loans Summary Report                                              =');
+  DBMS_OUTPUT.PUT_LINE('=========================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('Generated on: ' || TO_CHAR(SYSDATE, 'MM/DD/YYYY HH24:MI'));
+  
+  FOR cat_rec IN c_cat LOOP
+    v_found := TRUE;
+    DBMS_OUTPUT.PUT_LINE(CHR(10) || RPAD(cat_rec.category,15) || ' : ' || cat_rec.cnt || ' loan(s)');
+    DBMS_OUTPUT.PUT_LINE('Details:' || CHR(10));
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD('Copy ID', 9)   || ' ' ||
+      RPAD('Title', 30)    || ' ' ||
+      RPAD('Member ID', 9)  || ' ' ||
+      RPAD('Full Name', 20) || ' ' ||
+      RPAD('Loan ID', 9)    || ' ' ||
+      RPAD('Borrow Date', 11)   || ' ' ||
+      RPAD('Due Date', 11) || ' ' ||
+      RPAD('Overdue Days', 15)
+    );
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD('-', 9, '-')   || ' ' ||
+      RPAD('-', 30, '-')   || ' ' ||
+      RPAD('-', 9, '-')    || ' ' ||
+      RPAD('-', 20, '-')   || ' ' ||
+      RPAD('-', 9, '-')    || ' ' ||
+      RPAD('-', 11, '-')   || ' ' ||
+      RPAD('-', 11, '-')   || ' ' ||
+      RPAD('-', 15, '-')
+    );
+    FOR det_rec IN c_det(cat_rec.category) LOOP
+      DBMS_OUTPUT.PUT_LINE(
+        RPAD(det_rec.BookCopyID, 9)                   || ' ' ||
+        RPAD(SUBSTR(det_rec.BookTitle, 1, 30), 30)     || ' ' ||
+        RPAD(det_rec.MemberID, 9)                      || ' ' ||
+        RPAD(SUBSTR(det_rec.FullName, 1, 20), 20)      || ' ' ||
+        RPAD(det_rec.LoanID, 9)                        || ' ' ||
+        RPAD(TO_CHAR(det_rec.BorrowDate, 'MM/DD/YYYY'), 11) || ' ' ||
+        RPAD(TO_CHAR(det_rec.DueDate, 'MM/DD/YYYY'), 11)    || ' ' ||
+        RPAD(det_rec.days_overdue || ' days', 15)
+      );
+    END LOOP;
+  END LOOP;
+
+  IF NOT v_found THEN
+    RAISE NO_DATA_FOUND;
+  END IF;
+
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '=========================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                                     End of Report                                                     =');
+  DBMS_OUTPUT.PUT_LINE('=========================================================================================================================');
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(
+      -20013,
+      '=========================================================================================================================' || CHR(10) ||
+      'Error: No overdue data available.' || CHR(10) ||
+      '========================================================================================================================='
+    );
+
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(
+      -20014,
+      '=========================================================================================================================' || CHR(10) ||
+      'Unexpected error in SummariseOverduesByCategory: ' || SQLERRM || CHR(10) ||
+      '========================================================================================================================='
+    );
+END;
+/

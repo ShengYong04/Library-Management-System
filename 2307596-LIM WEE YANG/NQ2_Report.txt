@@ -1,0 +1,139 @@
+-- EXEC ReportBooksByGenreDecadeNested('romance', '1980', NULL,'5');
+-- EXEC ReportBooksByGenreDecadeNested('history', NULL, NULL, '10');
+-- EXEC ReportBooksByGenreDecadeNested(NULL, NULL, NULL, NULL);
+
+-- SET LINESIZE 150
+
+CREATE OR REPLACE PROCEDURE ReportBooksByGenreDecadeNested (
+  p_keyword        IN VARCHAR2,
+  p_min_year       IN VARCHAR2,
+  p_max_year       IN VARCHAR2,
+  p_min_popularity IN VARCHAR2
+) AS
+  CURSOR c_genres IS
+    SELECT DISTINCT Genre
+      FROM v_book_search
+     WHERE (p_keyword IS NULL
+            OR LOWER(BookTitle)     LIKE '%' || LOWER(p_keyword) || '%'
+            OR LOWER(BookAuthor)    LIKE '%' || LOWER(p_keyword) || '%'
+            OR LOWER(Genre)         LIKE '%' || LOWER(p_keyword) || '%'
+            OR LOWER(BookPublisher) LIKE '%' || LOWER(p_keyword) || '%')
+       AND (p_min_year IS NULL OR PublicationYear >= TO_NUMBER(p_min_year))
+       AND (p_max_year IS NULL OR PublicationYear <= TO_NUMBER(p_max_year))
+       AND (p_min_popularity IS NULL
+            OR popularity >= TO_NUMBER(p_min_popularity))
+     ORDER BY Genre;
+
+  CURSOR c_decades(p_genre VARCHAR2) IS
+    SELECT DISTINCT TRUNC(PublicationYear/10)*10 AS decade
+      FROM v_book_search
+     WHERE Genre = p_genre
+       AND (p_keyword IS NULL
+            OR LOWER(BookTitle)     LIKE '%' || LOWER(p_keyword) || '%'
+            OR LOWER(BookAuthor)    LIKE '%' || LOWER(p_keyword) || '%'
+            OR LOWER(Genre)         LIKE '%' || LOWER(p_keyword) || '%'
+            OR LOWER(BookPublisher) LIKE '%' || LOWER(p_keyword) || '%')
+       AND (p_min_year IS NULL OR PublicationYear >= TO_NUMBER(p_min_year))
+       AND (p_max_year IS NULL OR PublicationYear <= TO_NUMBER(p_max_year))
+       AND (p_min_popularity IS NULL
+            OR popularity >= TO_NUMBER(p_min_popularity))
+     ORDER BY decade;
+
+  CURSOR c_books(p_genre VARCHAR2, p_decade NUMBER) IS
+    SELECT 
+      BookID,
+      BookTitle,
+      BookAuthor,
+      BookPublisher,
+      available_copies,
+      total_copies,
+      popularity
+    FROM v_book_search
+    WHERE Genre = p_genre
+      AND TRUNC(PublicationYear/10)*10 = p_decade
+      AND (p_keyword IS NULL
+           OR LOWER(BookTitle)     LIKE '%' || LOWER(p_keyword) || '%'
+           OR LOWER(BookAuthor)    LIKE '%' || LOWER(p_keyword) || '%'
+           OR LOWER(Genre)         LIKE '%' || LOWER(p_keyword) || '%'
+           OR LOWER(BookPublisher) LIKE '%' || LOWER(p_keyword) || '%')
+      AND (p_min_popularity IS NULL
+           OR popularity >= TO_NUMBER(p_min_popularity))
+    ORDER BY popularity DESC, BookTitle;
+
+  v_any_found BOOLEAN := FALSE;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('==============================================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                                  Advanced Book Search by Genre and Decade                                                  =');
+  DBMS_OUTPUT.PUT_LINE('==============================================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('Generated on: ' || TO_CHAR(SYSDATE, 'MM/DD/YYYY HH24:MI'));
+  DBMS_OUTPUT.PUT_LINE('Filters Applied -> ' ||
+                       'Keyword: ' || NVL(p_keyword, '<any>') || ', ' ||
+                       'Year Range: ' || NVL(p_min_year, '<min>') || '–' || NVL(p_max_year, '<max>') || ', ' ||
+                       'Min Popularity: ' || NVL(p_min_popularity, '<any>'));
+  DBMS_OUTPUT.PUT_LINE('==============================================================================================================================================');
+
+  FOR g IN c_genres LOOP
+    DBMS_OUTPUT.PUT_LINE(CHR(10) || '>>> Genre: ' || g.Genre);
+    FOR d IN c_decades(g.Genre) LOOP
+      v_any_found := TRUE;
+      DBMS_OUTPUT.PUT_LINE(CHR(10) || '-- Decade: ' || d.decade || 's --');
+      DBMS_OUTPUT.PUT_LINE(CHR(10) ||
+        RPAD('Book ID',8)      || ' ' ||
+        RPAD('Title',40)      || ' ' ||
+        RPAD('Author',25)     || ' ' ||
+        RPAD('Publisher',25)  || ' ' ||
+        RPAD('Available Copies',16)       || ' ' ||
+        RPAD('Total Copies',12)       || ' ' ||
+        RPAD('Popularity',10)
+      );
+
+      DBMS_OUTPUT.PUT_LINE(
+        RPAD('-',8,'-')       || ' ' ||
+        RPAD('-',40,'-')      || ' ' ||
+        RPAD('-',25,'-')      || ' ' ||
+        RPAD('-',25,'-')      || ' ' ||
+        RPAD('-',16,'-')       || ' ' ||
+        RPAD('-',12,'-')       || ' ' ||
+        RPAD('-',10,'-')
+      );
+
+      FOR b IN c_books(g.Genre, d.decade) LOOP
+        DBMS_OUTPUT.PUT_LINE(
+          RPAD(b.BookID,8)                   || ' ' ||
+          RPAD(SUBSTR(b.BookTitle,1,40),40)  || ' ' ||
+          RPAD(SUBSTR(b.BookAuthor,1,25),25) || ' ' ||
+          RPAD(SUBSTR(b.BookPublisher,1,25),25) || ' ' ||
+          RPAD(b.available_copies,16)        || ' ' ||
+          RPAD(b.total_copies,12)            || ' ' ||
+          RPAD(b.popularity,10)
+        );
+      END LOOP;
+    END LOOP;
+  END LOOP;
+
+IF NOT v_any_found THEN
+  RAISE NO_DATA_FOUND;
+END IF;
+
+DBMS_OUTPUT.PUT_LINE(CHR(10) || '==============================================================================================================================================');
+DBMS_OUTPUT.PUT_LINE('=                                                               End of Report                                                                =');
+DBMS_OUTPUT.PUT_LINE('==============================================================================================================================================');
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(
+      -20001,
+      '==============================================================================================================================================' || CHR(10) ||
+      'No books found matching those criteria.' || CHR(10) ||
+      '=============================================================================================================================================='
+    );
+
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(
+      -20002,
+      '==============================================================================================================================================' || CHR(10) ||
+      'Unexpected error in ReportBooksByGenreDecadeNested: ' || SQLERRM || CHR(10) ||
+      '=============================================================================================================================================='
+    );
+END;
+/

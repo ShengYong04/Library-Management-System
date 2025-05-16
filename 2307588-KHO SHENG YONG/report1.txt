@@ -1,0 +1,91 @@
+SET PAGESIZE 300
+SET LINESIZE 300
+
+CREATE OR REPLACE PROCEDURE GenerateTopReservedBooks AS
+  CURSOR c_genre IS
+    SELECT 
+      Genre,
+      COUNT(DISTINCT b.BookID) AS num_books
+    FROM Book b
+    JOIN BookCopy bc ON b.BookID = bc.BookID
+    LEFT JOIN Reservation r ON bc.BookCopyID = r.BookCopyID
+    GROUP BY Genre
+    ORDER BY Genre;
+
+  CURSOR c_detail(p_genre VARCHAR2) IS
+    SELECT 
+      b.BookID,
+      b.BookTitle,
+      b.BookAuthor,
+      b.BookPublisher,
+      b.PublicationYear,
+      COUNT(bc.BookCopyID) AS total_copies,
+      SUM(CASE WHEN bc.AvailabilityStatus = 'AVAILABLE' THEN 1 ELSE 0 END) AS available_copies,
+      COUNT(r.ReservationID) AS reserved
+    FROM Book b
+    JOIN BookCopy bc ON b.BookID = bc.BookID
+    LEFT JOIN Reservation r ON bc.BookCopyID = r.BookCopyID
+    WHERE b.Genre = p_genre
+    GROUP BY 
+      b.BookID, b.BookTitle, b.BookAuthor, b.BookPublisher, b.PublicationYear
+    ORDER BY reserved DESC;
+
+  v_found BOOLEAN := FALSE;
+
+BEGIN
+  DBMS_OUTPUT.PUT_LINE('=================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                   Top Reserved Books Categorised by Genre                                     =');
+  DBMS_OUTPUT.PUT_LINE('=================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('Generated on: ' || TO_CHAR(SYSDATE, 'DD-MON-YYYY HH24:MI'));
+
+  FOR genre_rec IN c_genre LOOP
+    v_found := TRUE;
+    DBMS_OUTPUT.PUT_LINE(CHR(10) || 'Genre: ' || genre_rec.Genre || ' (' || genre_rec.num_books || ' book(s))');
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD('Book ID', 9) || ' ' ||
+      RPAD('Title', 30) || ' ' ||
+      RPAD('Author', 20) || ' ' ||
+      RPAD('Publisher', 20) || ' ' ||
+      RPAD('Year', 5) || ' ' ||
+      RPAD('Available', 9) || ' ' ||
+      RPAD('Total', 5) || ' ' ||
+      RPAD('Reserved', 8)
+    );
+    DBMS_OUTPUT.PUT_LINE(
+      RPAD('-', 9, '-') || ' ' ||
+      RPAD('-', 30, '-') || ' ' ||
+      RPAD('-', 20, '-') || ' ' ||
+      RPAD('-', 20, '-') || ' ' ||
+      RPAD('-', 5, '-') || ' ' ||
+      RPAD('-', 9, '-') || ' ' ||
+      RPAD('-', 5, '-') || ' ' ||
+      RPAD('-', 8, '-')
+    );
+
+    FOR detail_rec IN c_detail(genre_rec.Genre) LOOP
+      DBMS_OUTPUT.PUT_LINE(
+        RPAD(detail_rec.BookID, 9) || ' ' ||
+        RPAD(SUBSTR(detail_rec.BookTitle, 1, 30), 30) || ' ' ||
+        RPAD(SUBSTR(detail_rec.BookAuthor, 1, 20), 20) || ' ' ||
+        RPAD(SUBSTR(detail_rec.BookPublisher, 1, 20), 20) || ' ' ||
+        RPAD(detail_rec.PublicationYear, 5) || ' ' ||
+        RPAD(detail_rec.available_copies, 9) || ' ' ||
+        RPAD(detail_rec.total_copies, 5) || ' ' ||
+        RPAD(detail_rec.reserved, 8)
+      );
+    END LOOP;
+  END LOOP;
+
+  IF NOT v_found THEN
+    DBMS_OUTPUT.PUT_LINE('No reservation data found.');
+  END IF;
+
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '=================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                                  End of Report                                                =');
+  DBMS_OUTPUT.PUT_LINE('=================================================================================================================');
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20001, 'Error in GenerateTopReservedBooks: ' || SQLERRM);
+END;
+/

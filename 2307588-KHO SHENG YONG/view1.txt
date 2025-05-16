@@ -1,0 +1,22 @@
+CREATE OR REPLACE VIEW v_top_reserved_books AS
+SELECT
+  b.BookID,
+  b.BookTitle,
+  b.BookAuthor,
+  b.Genre,
+  b.BookPublisher,
+  b.PublicationYear,
+  SUM(CASE WHEN bc.AvailabilityStatus = 'AVAILABLE' THEN 1 ELSE 0 END)   AS AvailableCopies,
+  COUNT(bc.BookCopyID)                                                 AS TotalCopies,
+  COUNT(r.ReservationID)                                               AS Reserved
+FROM
+  Book b
+  JOIN BookCopy bc   ON b.BookID      = bc.BookID
+  LEFT JOIN Reservation r ON bc.BookCopyID = r.BookCopyID
+GROUP BY
+  b.BookID,
+  b.BookTitle,
+  b.BookAuthor,
+  b.Genre,
+  b.BookPublisher,
+  b.PublicationYear;

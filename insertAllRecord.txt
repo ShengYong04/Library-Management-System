@@ -1,0 +1,9 @@
+@insertBook.txt
+@insertBookCopy.txt
+@insertMembers.txt
+@insertLoan.txt
+@insertReservation.txt
+@insertFine.txt
+@insertCampaign.txt
+@insertApplication.txt
+@insertPayment.txt

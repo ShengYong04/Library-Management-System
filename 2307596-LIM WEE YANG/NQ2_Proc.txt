@@ -1,0 +1,73 @@
+-- =================================
+-- exec CreateLoanRecord(NULL, NULL, 'BC000224', 'MB000001')
+
+-- error handling after inserting new loan (trigger 1)
+
+-- borrow a book that has the same title with an active loan that the user made
+-- exec CreateLoanRecord(NULL, NULL, 'BC000222', 'MB000001')
+
+-- borrow a book where the bookCopyID doesnt exist
+-- exec CreateLoanRecord(NULL, NULL, 'BC000567', 'MB000001')
+
+-- already have 8 active loan state
+-- exec CreateLoanRecord(NULL, NULL, 'BC000116', 'MB000001')
+-- exec CreateLoanRecord(NULL, NULL, 'BC000126', 'MB000001')
+-- exec CreateLoanRecord(NULL, NULL, 'BC000135', 'MB000001')
+-- exec CreateLoanRecord(NULL, NULL, 'BC000148', 'MB000001')
+-- exec CreateLoanRecord(NULL, NULL, 'BC000165', 'MB000001')
+-- exec CreateLoanRecord(NULL, NULL, 'BC000173', 'MB000001')
+-- exec CreateLoanRecord(NULL, NULL, 'BC000206', 'MB000001')
+-- exec CreateLoanRecord(NULL, NULL, 'BC000219', 'MB000001')
+-- =================================
+
+CREATE OR REPLACE PROCEDURE CreateLoanRecord (
+  p_BorrowDate   IN Loan.BorrowDate%TYPE,
+  p_DueDate   IN Loan.DueDate%TYPE,
+  p_BookCopyID   IN Loan.BookCopyID%TYPE,
+  p_MemberID     IN Loan.MemberID%TYPE
+) AS
+  v_dummy NUMBER;
+  v_borrow_date  Loan.BorrowDate%TYPE := p_BorrowDate;
+  v_due_date     Loan.DueDate%TYPE    := p_DueDate;
+BEGIN
+  SELECT 1 
+    INTO v_dummy
+    FROM Members
+  WHERE MemberID = p_MemberID;
+
+  IF v_borrow_date IS NULL THEN
+    v_borrow_date := SYSDATE;
+  END IF;
+
+  IF v_due_date IS NULL THEN
+    v_due_date := v_borrow_date + 7;
+  ELSIF v_due_date < v_borrow_date THEN
+    RAISE_APPLICATION_ERROR(
+      -20010,
+      'Due date ('||TO_CHAR(v_due_date,'MM/DD/YYYY')||') cannot be before borrow date ('||TO_CHAR(v_borrow_date,'MM/DD/YYYY')||')'
+    );
+  END IF;
+
+  INSERT INTO Loan (
+    BorrowDate,
+    DueDate,
+    ReturnDate,
+    BookCopyID,
+    MemberID
+  ) VALUES (
+    v_borrow_date,
+    v_due_date,
+    NULL,
+    p_BookCopyID,
+    p_MemberID
+  );
+
+  DBMS_OUTPUT.PUT_LINE('Loan successfully created for Member ' || p_MemberID ||' (Borrow: '||TO_CHAR(v_borrow_date,'MM/DD/YYYY')||', Due: '||TO_CHAR(v_due_date,'MM/DD/YYYY')||')');
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR(-20010, 'Member ID ' || p_MemberID || ' does not exist.');
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20099, 'Unexpected error: ' || SQLERRM);
+END;
+/

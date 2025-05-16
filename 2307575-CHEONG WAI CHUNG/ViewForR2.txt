@@ -1,0 +1,17 @@
+CREATE OR REPLACE VIEW vw_MembersAppliedToCampaigns AS
+SELECT
+    m.MemberID,
+    m.FirstName || ' ' || m.LastName AS FullName,
+    c.CampaignName,
+    a.ApplicationStatus,
+    a.ApplicationDate
+FROM
+    Application a
+JOIN
+    Members m ON a.MemberID = m.MemberID
+JOIN
+    Campaign c ON a.CampaignID = c.CampaignID
+WHERE
+    UPPER(c.CampaignStatus) = 'ACTIVE'
+ORDER BY
+    a.ApplicationDate DESC;

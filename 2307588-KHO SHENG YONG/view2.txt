@@ -1,0 +1,17 @@
+CREATE OR REPLACE VIEW v_unpaid_fines AS
+SELECT 
+    m.MemberID,
+    m.FirstName || ' ' || m.LastName AS MemberName,
+    l.LoanID,
+    l.LoanStatus,
+    f.FineID,
+    f.FineStatus,
+    f.FineAmount
+FROM 
+    Fine f
+JOIN 
+    Members m ON f.MemberID = m.MemberID
+JOIN 
+    Loan l ON f.LoanID = l.LoanID
+WHERE 
+    UPPER(f.FineStatus) = 'UNPAID';

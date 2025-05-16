@@ -1,0 +1,34 @@
+
+SET PAGESIZE 50
+SET LINESIZE 95
+SET FEEDBACK OFF
+SET VERIFY OFF
+TTITLE CENTER '----------------======= CAMPAIGN EFFECTIVENESS ANALYSIS =======----------------' SKIP 2
+
+COLUMN CampaignID          FORMAT A12         HEADING 'Campaign ID'
+COLUMN CampaignName        FORMAT A31         HEADING 'Campaign Name'
+COLUMN DiscountRate        FORMAT A8     HEADING 'Discount'
+COLUMN MembersParticipated FORMAT 9999        HEADING 'Members'
+COLUMN PaymentsProcessed   FORMAT 9999        HEADING 'Payments'
+COLUMN TotalRevenue        FORMAT $999,999.99 HEADING 'Total Revenue'
+COLUMN RevenuePerMember    FORMAT $9,999.99   HEADING 'Rev/Member'
+
+SELECT 
+    CampaignID,
+    CampaignName,
+    TO_CHAR(DiscountRate) || '%' AS DiscountRate,
+    MembersParticipated,
+    PaymentsProcessed,
+    TotalRevenue,
+    RevenuePerMember
+FROM vw_campaign_effectiveness
+ORDER BY TotalRevenue DESC;
+
+PROMPT
+PROMPT ===============================================================================================
+PROMPT |                              End of Campaign Effectiveness Report                           |
+PROMPT ===============================================================================================
+
+TTITLE OFF
+SET FEEDBACK ON
+SET VERIFY ON

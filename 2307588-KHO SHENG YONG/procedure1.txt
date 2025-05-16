@@ -1,0 +1,32 @@
+CREATE OR REPLACE PROCEDURE CreateReservationRecord (
+  p_memberid   IN Reservation.MemberID%TYPE,
+  p_bookcopyid IN Reservation.BookCopyID%TYPE
+) IS
+BEGIN
+  INSERT INTO Reservation (
+    ReservationID,
+    ReservationDate,
+    ReservationStatus,
+    MemberID,
+    BookCopyID
+  ) VALUES (
+    'RS' || LPAD(seq_reservation.NEXTVAL, 6, '0'),
+    SYSDATE,
+    'PLACED',
+    p_memberid,
+    p_bookcopyid
+  );
+
+  COMMIT;
+
+  DBMS_OUTPUT.PUT_LINE(
+    'Reservation created: ' || p_memberid || ' -> ' || p_bookcopyid);
+
+EXCEPTION
+  WHEN OTHERS THEN
+    ROLLBACK;
+    RAISE_APPLICATION_ERROR(-20099,
+      'Error in CreateReservationRecord: ' || SQLERRM);
+END CreateReservationRecord;
+/
+

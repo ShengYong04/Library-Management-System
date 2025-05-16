@@ -1,0 +1,125 @@
+SET SERVEROUTPUT ON;
+SET LINESIZE 350
+CREATE OR REPLACE PROCEDURE SummariseReturnedBooks AS
+  CURSOR c_cat IS
+    SELECT 'RETURNED' AS category FROM DUAL
+    UNION ALL
+    SELECT 'RETURNEDLATE' FROM DUAL
+    UNION ALL
+    SELECT 'RETURNEDDAMAGED' FROM DUAL
+    UNION ALL
+    SELECT 'MISSING' FROM DUAL;
+
+  CURSOR c_det(p_status VARCHAR2) IS
+    SELECT 
+      bc.BookCopyID,
+      b.BookTitle,
+      m.MemberID,
+      m.FirstName || ' ' || m.LastName AS FullName,
+      l.LoanID,
+      l.BorrowDate,
+      l.DueDate,
+      l.ReturnDate,
+      l.LoanStatus
+    FROM Loan l
+    JOIN BookCopy bc ON l.BookCopyID = bc.BookCopyID
+    JOIN Book b      ON bc.BookID = b.BookID
+    JOIN Members m   ON l.MemberID = m.MemberID
+    WHERE UPPER(l.LoanStatus) = p_status
+    ORDER BY m.MemberID, l.LoanID;
+
+  v_total NUMBER;
+  v_month NUMBER;
+  v_week  NUMBER;
+  v_found BOOLEAN := FALSE;
+BEGIN
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '=========================================================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                                              Categorised Returned Book Report                                                         =');
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '=========================================================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('Generated on: ' || TO_CHAR(SYSDATE, 'MM/DD/YYYY HH24:MI'));
+
+  FOR cat_rec IN c_cat LOOP
+    -- Calculate total, current month, and current week counts
+    SELECT COUNT(*) INTO v_total
+    FROM Loan
+    WHERE UPPER(LoanStatus) = cat_rec.category;
+
+    SELECT COUNT(*) INTO v_month
+    FROM Loan
+    WHERE UPPER(LoanStatus) = cat_rec.category
+      AND EXTRACT(MONTH FROM ReturnDate) = EXTRACT(MONTH FROM SYSDATE)
+      AND EXTRACT(YEAR FROM ReturnDate) = EXTRACT(YEAR FROM SYSDATE);
+
+    SELECT COUNT(*) INTO v_week
+    FROM Loan
+    WHERE UPPER(LoanStatus) = cat_rec.category
+      AND TRUNC(ReturnDate, 'IW') = TRUNC(SYSDATE, 'IW');
+
+    -- Mark we have data
+    IF v_total > 0 THEN
+      v_found := TRUE;
+
+      DBMS_OUTPUT.PUT_LINE(CHR(10)|| cat_rec.category || + ':');
+      DBMS_OUTPUT.PUT_LINE('Total Records      : ' || v_total);
+      DBMS_OUTPUT.PUT_LINE('This Month Records : ' || v_month);
+      DBMS_OUTPUT.PUT_LINE('This Week Records  : ' || v_week);
+
+      -- Only show detailed data for RETURNEDDAMAGED and MISSING
+      IF cat_rec.category IN ('RETURNEDDAMAGED', 'MISSING') THEN
+        DBMS_OUTPUT.PUT_LINE(' ');
+        DBMS_OUTPUT.PUT_LINE(
+          RPAD('Copy ID', 10)   || ' ' ||
+          RPAD('Book Title', 35)|| ' ' ||
+          RPAD('Member ID', 10)|| ' ' ||
+          RPAD('Full Name', 25)|| ' ' ||
+          RPAD('Loan ID', 8)   || ' ' ||
+          RPAD('Borrow Date', 12)|| ' ' ||
+          RPAD('Due Date', 12)  || ' ' ||
+          RPAD('Return Date', 12)|| ' ' ||
+          RPAD('Status', 15)
+        );
+        DBMS_OUTPUT.PUT_LINE(
+          RPAD('-', 10, '-') || ' ' ||
+          RPAD('-', 35, '-') || ' ' ||
+          RPAD('-', 10, '-') || ' ' ||
+          RPAD('-', 25, '-') || ' ' ||
+          RPAD('-', 8, '-')  || ' ' ||
+          RPAD('-', 12, '-') || ' ' ||
+          RPAD('-', 12, '-') || ' ' ||
+          RPAD('-', 12, '-') || ' ' ||
+          RPAD('-', 15, '-')
+        );
+
+        FOR det_rec IN c_det(cat_rec.category) LOOP
+          DBMS_OUTPUT.PUT_LINE(
+            RPAD(det_rec.BookCopyID, 10)                     || ' ' ||
+            RPAD(SUBSTR(det_rec.BookTitle, 1, 35), 35)       || ' ' ||
+            RPAD(det_rec.MemberID, 10)                       || ' ' ||
+            RPAD(SUBSTR(det_rec.FullName, 1, 25), 25)        || ' ' ||
+            RPAD(det_rec.LoanID, 8)                          || ' ' ||
+            RPAD(TO_CHAR(det_rec.BorrowDate, 'MM/DD/YYYY'), 12) || ' ' ||
+            RPAD(TO_CHAR(det_rec.DueDate, 'MM/DD/YYYY'), 12)    || ' ' ||
+            RPAD(NVL(TO_CHAR(det_rec.ReturnDate, 'MM/DD/YYYY'), 'N/A'), 12) || ' ' ||
+            RPAD(det_rec.LoanStatus, 15)
+          );
+        END LOOP;
+      END IF;
+    END IF;
+  END LOOP;
+
+  IF NOT v_found THEN
+    RAISE_APPLICATION_ERROR(-20017,'No returned or missing loans found.');
+  END IF;
+
+  DBMS_OUTPUT.PUT_LINE(CHR(10) || '=========================================================================================================================================================');
+  DBMS_OUTPUT.PUT_LINE('=                                                                      End of Report                                                                    =');
+  DBMS_OUTPUT.PUT_LINE('=========================================================================================================================================================');
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE_APPLICATION_ERROR(-20018,'Unexpected error in SummariseReturnedBooksByCategory: ' || SQLERRM);
+END;
+/
+
+
+--EXEC SummariseReturnedBooksByCategory;

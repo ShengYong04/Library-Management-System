@@ -1,0 +1,9 @@
+DROP SEQUENCE seq_application_number;
+
+CREATE SEQUENCE seq_application_number
+  MINVALUE 1
+  MAXVALUE 999999
+  START WITH 323
+  INCREMENT BY 1
+  NOCACHE
+  NOCYCLE;
